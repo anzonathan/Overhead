@@ -635,8 +635,8 @@ function openGoalModal(goalId = null, parentId = null, areaId = null) {
         <option value="daily" ${scale==='daily'?'selected':''}>Daily</option>
       </select>
       <select id="modal-goal-type" onchange="toggleLoopTime()" style="flex:1; background:var(--surface-alt); border:none; border-radius:4px; padding:4px 8px; font-family:var(--mono); font-size:11px; outline:none; color:var(--ink);">
-        <option value="linear" ${type==='linear'?'selected':''}>Linear (Once)</option>
-        <option value="loop" ${type==='loop'?'selected':''}>Loop (Recurring)</option>
+        <option value="linear" ${type==='linear'?'selected':''}>Linear</option>
+        <option value="loop" ${type==='loop'?'selected':''}>Loop</option>
       </select>
     </div>
     <div id="loop-time-row" style="display:${type==='loop'?'block':'none'}; margin-top:8px;">
@@ -646,11 +646,10 @@ function openGoalModal(goalId = null, parentId = null, areaId = null) {
         <span style="color:var(--ink-2);font-size:10px;">-</span>
         <input type="time" id="modal-loop-et" value="${defEt}" style="background:var(--surface-alt); border:none; border-radius:4px; padding:4px; font-family:var(--mono); font-size:11px; color:var(--ink);" />
       </div>
-      <div style="display:flex; gap:4px; align-items:center;">
-        <span style="font-family:var(--mono); font-size:9px; color:var(--ink-2); text-transform:uppercase; margin-right:4px;">Days</span>
+      <div style="display:flex; justify-content:space-between; align-items:center; width:100%; padding-top:2px;">
         ${['S','M','T','W','T','F','S'].map((lbl,i) => {
           const checked = recDays.includes(i) ? 'checked' : '';
-          return `<label style="display:flex;align-items:center;gap:2px;font-family:var(--mono);font-size:10px;color:var(--ink-2);cursor:pointer;"><input type="checkbox" class="loop-day-cb" value="${i}" ${checked} style="width:13px;height:13px;accent-color:var(--accent);" />${lbl}</label>`;
+          return `<label style="display:flex;align-items:center;gap:2px;font-family:var(--mono);font-size:10px;color:var(--ink-2);cursor:pointer;"><input type="checkbox" class="loop-day-cb" value="${i}" ${checked} style="width:13px;height:13px;margin:0;accent-color:var(--accent);" />${lbl}</label>`;
         }).join('')}
       </div>
     </div>
