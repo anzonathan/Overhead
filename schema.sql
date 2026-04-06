@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     id TEXT PRIMARY KEY,
     date TEXT NOT NULL,
     goalId TEXT DEFAULT '',
+    parentId TEXT DEFAULT '',
     title TEXT,
     time TEXT,
     done BOOLEAN NOT NULL DEFAULT 0

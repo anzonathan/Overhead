@@ -119,24 +119,42 @@ function renderToday() {
   const freeH = Math.floor((totalMins - scheduledMins) / 60);
   const freeM = (totalMins - scheduledMins) % 60;
 
-  function renderTaskRow(t) {
+  function renderTaskRow(t, isSubtask = false) {
     const goal = t.goalId ? getGoal(t.goalId) : null;
     const area = goal ? getArea(goal.area) : null;
     const sym = area ? area.sym : '·';
     const label = t.title || (goal ? goal.title : 'Untitled');
-    const timeLabel = t.time ? `<span class="row-time">${t.time}</span>` : '';
+    const timeLabel = (t.time && !isSubtask) ? `<span class="row-time">${t.time}</span>` : '';
 
-    return `
+    const subtasks = tasks.filter(st => st.parentId === t.id && st.title !== '__DELETED__');
+    const hasSubtasks = subtasks.length > 0;
+
+    const rowContent = `
       <div class="day-row${t.done ? ' done' : ''}">
         <span class="row-icon" title="${goal ? goal.area : 'none'}">${sym}</span>
         <span class="row-title" onclick="openModal('${t.id}')" style="cursor:pointer">${label}</span>
         ${timeLabel}
+        <button class="sub-add-btn" onclick="openModal(null, '${key}', '${t.id}')">+</button>
         <span class="row-cb${t.done ? ' checked' : ''}" onclick="toggleRowTask(event, '${t.id}')">✓</span>
       </div>`;
+
+    if (hasSubtasks) {
+      const subtaskHtml = subtasks.map(st => renderTaskRow(st, true)).join('');
+      return `
+        <details class="task-node depth-${isSubtask ? 'sub' : 'root'}" open>
+          <summary>${rowContent}</summary>
+          <div class="task-children" style="margin-left: 24px; border-left: 1px solid var(--rule); padding-left: 10px;">
+            ${subtaskHtml}
+          </div>
+        </details>
+      `;
+    }
+
+    return rowContent;
   }
 
-  const scheduledRows = scheduled.map(renderTaskRow).join('');
-  const unscheduledRows = unscheduled.map(renderTaskRow).join('');
+  const scheduledRows = scheduled.filter(t => !t.parentId).map(t => renderTaskRow(t)).join('');
+  const unscheduledRows = unscheduled.filter(t => !t.parentId).map(t => renderTaskRow(t)).join('');
 
   const totalTasks = tasks.length;
   const doneTasks = tasks.filter(t => t.done).length;
@@ -183,23 +201,42 @@ function renderWeek() {
     const isSab = d.getDay() === 6;
     const tasks = getTasksForDate(key);
     
+    function renderTaskRow(t, isSubtask = false) {
+      const goal = t.goalId ? getGoal(t.goalId) : null;
+      const area = goal ? getArea(goal.area) : null;
+      const sym = area ? area.sym : '·';
+      const label = t.title || (goal ? goal.title : 'Untitled');
+      const timeLabel = (t.time && !isSubtask) ? `<span class="row-time">${t.time}</span>` : '';
+      
+      const subtasks = tasks.filter(st => st.parentId === t.id && st.title !== '__DELETED__');
+      const hasSubtasks = subtasks.length > 0;
+
+      const rowContent = `
+        <div class="day-row${t.done ? ' done':''}" style="padding:6px 0;">
+          <span class="row-icon">${sym}</span>
+          <span class="row-title" onclick="openModal('${t.id}')" style="cursor:pointer;font-size:14px;">${label}</span>
+          ${timeLabel}
+          <button class="sub-add-btn" onclick="openModal(null, '${key}', '${t.id}')">+</button>
+          <span class="row-cb${t.done ? ' checked' : ''}" onclick="toggleRowTask(event, '${t.id}')">✓</span>
+        </div>`;
+
+      if (hasSubtasks) {
+        const subHtml = subtasks.map(st => renderTaskRow(st, true)).join('');
+        return `
+          <details class="task-node depth-${isSubtask ? 'sub' : 'root'}" open>
+            <summary>${rowContent}</summary>
+            <div class="task-children" style="margin-left: 20px; border-left: 1px solid var(--rule); padding-left: 10px;">
+              ${subHtml}
+            </div>
+          </details>
+        `;
+      }
+      return rowContent;
+    }
+
     let taskHtml = isSab
       ? `<p style="color:#dc2626;font-family:var(--mono);font-size:11px;margin-bottom:12px;">⊗ SABBATH — no tasks scheduled</p>`
-      : tasks.map(t => {
-          const goal = t.goalId ? getGoal(t.goalId) : null;
-          const area = goal ? getArea(goal.area) : null;
-          const sym = area ? area.sym : '·';
-          const label = t.title || (goal ? goal.title : 'Untitled');
-          const timeLabel = t.time ? `<span class="row-time">${t.time}</span>` : '';
-          
-          return `
-          <div class="day-row${t.done ? ' done':''}" style="padding:6px 0;">
-            <span class="row-icon">${sym}</span>
-            <span class="row-title" onclick="openModal('${t.id}')" style="cursor:pointer;font-size:14px;">${label}</span>
-            ${timeLabel}
-            <span class="row-cb${t.done ? ' checked' : ''}" onclick="toggleRowTask(event, '${t.id}')">✓</span>
-          </div>`;
-        }).join('');
+      : tasks.filter(t => !t.parentId).map(t => renderTaskRow(t)).join('');
 
     const addBtn = isSab ? '' : `<div style="margin-top:2px;"><button class="sub-add-btn" onclick="openModalForDate('${key}')" title="Add task in this day">+</button></div>`;
 
@@ -242,18 +279,19 @@ function renderMonth() {
       const cls     = [isSab?'sabbath':'', isT?'today':'', isSel?'selected':''].filter(Boolean).join(' ');
       
       const tasksToday = getTasksForDate(key);
+      const rootTasksToday = tasksToday.filter(t => !t.parentId);
 
       const preview = isSab
         ? `<div class="cal-sabbath-tag">⊗ sabbath</div>`
-        : tasksToday.slice(0, 4).map(t => {
+        : rootTasksToday.slice(0, 4).map(t => {
             const g = getGoal(t.goalId);
             return `
               <div class="cal-ev${t.done ? ' done':''}">
                 <span class="cal-ev-t">${t.time}</span>
-                <span class="cal-ev-n">${g ? g.title.toLowerCase() : '...'}</span>
+                <span class="cal-ev-n">${g ? g.title.toLowerCase() : (t.title || '...')}</span>
               </div>`;
           }).join('') +
-          (tasksToday.length > 4 ? `<div class="cal-ev-more">+${tasksToday.length-4}</div>` : '');
+          (rootTasksToday.length > 4 ? `<div class="cal-ev-more">+${rootTasksToday.length-4}</div>` : '');
 
       cells += `
         <td class="${cls}" data-day="${d}" data-month="${month}" data-year="${year}">
@@ -272,21 +310,40 @@ function renderMonth() {
     const isSab  = date.getDay() === 6;
     const tasks  = getTasksForDate(key);
 
+    function renderTaskRow(t, isSubtask = false) {
+      const goal = getGoal(t.goalId);
+      const label = t.title || (goal ? goal.title : 'Untitled');
+      const area = goal ? getArea(goal.area) : null;
+      const sym = area ? area.sym : '·';
+      const timeLabel = (t.time && !isSubtask) ? `<span class="row-time">${t.time}</span>` : '';
+      
+      const subtasks = tasks.filter(st => st.parentId === t.id && st.title !== '__DELETED__');
+      
+      const rowContent = `
+        <div class="day-row${t.done ? ' done':''}">
+          <span class="row-icon">${sym}</span>
+          <span class="row-title" onclick="openModal('${t.id}')" style="cursor:pointer">${label}</span>
+          ${timeLabel}
+          <button class="sub-add-btn" onclick="openModal(null, '${key}', '${t.id}')">+</button>
+          <span class="row-cb${t.done ? ' checked' : ''}" onclick="toggleRowTask(event, '${t.id}')">✓</span>
+        </div>`;
+
+      if (subtasks.length > 0) {
+        return `
+          <details class="task-node" open>
+            <summary>${rowContent}</summary>
+            <div class="task-children" style="margin-left:20px; border-left:1px solid var(--rule); padding-left:10px;">
+              ${subtasks.map(st => renderTaskRow(st, true)).join('')}
+            </div>
+          </details>
+        `;
+      }
+      return rowContent;
+    }
+
     const schedRows = isSab
       ? `<p style="color:#e53e3e;font-family:var(--mono);font-size:12px;">⊗ SABBATH — no tasks scheduled</p>`
-      : tasks.map(t => {
-          const goal = getGoal(t.goalId);
-          if(!goal) return '';
-          const area = getArea(goal.area);
-          const sym = area ? area.sym : '·';
-        return `
-          <div class="day-row${t.done ? ' done':''}">
-            <span class="row-icon">${sym}</span>
-            <span class="row-title" onclick="openModal('${t.id}')" style="cursor:pointer">${t.title || goal.title}</span>
-            <span class="row-time">${t.time}</span>
-            <span class="row-cb${t.done ? ' checked' : ''}" onclick="toggleRowTask(event, '${t.id}')">✓</span>
-          </div>`;
-        }).join('');
+      : tasks.filter(t => !t.parentId).map(t => renderTaskRow(t)).join('');
 
     const addBtnMonth = isSab ? '' : `<span onclick="openModalForDate('${key}')" style="cursor:pointer;font-family:var(--mono);font-size:12px;color:var(--ink-2);margin-left:8px;" title="Add task">+ add task</span>`;
 
@@ -326,25 +383,39 @@ function renderGoalNode(goalId, depth) {
   if (goalFilter) match = (goal.scale === goalFilter);
   
   let childrenHtml = '';
-  if (goal.subgoals && goal.subgoals.length > 0) {
+  const hasChildren = goal.subgoals && goal.subgoals.length > 0;
+  if (hasChildren) {
     childrenHtml = goal.subgoals.map(sid => renderGoalNode(sid, depth+1)).join('');
   }
   
-  // If it doesn't match the filter AND none of its children matched either (which would be childrenHtml != ''), hide it entirely.
   if (!match && !childrenHtml && goalFilter) return '';
 
   const typeSym = goal.type === 'loop' ? '↻' : '→';
   const badgeClass = goal.scale === 'life' ? 'b-life' : (goal.scale === 'annual' ? 'b-plan' : (goal.scale === 'monthly' ? 'b-nonneg' : (goal.scale === 'weekly' ? 'b-high' : 'b-active')));
   
+  const content = `
+    <div class="goal-row">
+      <span class="goal-type-sym">${typeSym}</span>
+      <span class="goal-txt" style="cursor:pointer;" onclick="openGoalModal('${goal.id}')">${goal.title}</span>
+      <span class="badge ${badgeClass}">${goal.scale.toUpperCase()}</span>
+      <button class="sub-add-btn" onclick="openGoalModal(null, '${goal.id}')">+</button>
+    </div>
+  `;
+
+  if (hasChildren) {
+    return `
+      <details class="goal-node depth-${depth}" open>
+        <summary>${content}</summary>
+        <div class="goal-children">
+          ${childrenHtml}
+        </div>
+      </details>
+    `;
+  }
+
   return `
     <div class="goal-node depth-${depth}">
-      <div class="goal-row">
-        <span class="goal-type-sym">${typeSym}</span>
-        <span class="goal-txt" style="cursor:pointer;" onclick="openGoalModal('${goal.id}')">${goal.title}</span>
-        <span class="badge ${badgeClass}">${goal.scale.toUpperCase()}</span>
-        <button class="sub-add-btn" onclick="openGoalModal(null, '${goal.id}')">+</button>
-      </div>
-      ${childrenHtml}
+      ${content}
     </div>`;
 }
 
@@ -413,25 +484,55 @@ async function toggleRowTask(e, taskId) {
   
   const t = TASKS.find(x => x.id === taskId);
   if (t) {
-    t.done = done;
-    if (t.isVirtual) {
-      delete t.isVirtual;
-      await fetch(`/api/tasks`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(t)
-      });
-    } else {
-      await fetch(`/api/tasks/${taskId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(t)
-      });
+    await updateTaskStatusRecursive(t, done);
+  }
+}
+
+async function updateTaskStatusRecursive(task, done) {
+  task.done = done;
+  
+  // 1. Handle children: if we check a parent, check all children. If we uncheck, uncheck all.
+  const children = TASKS.filter(st => st.parentId === task.id && st.title !== '__DELETED__');
+  for (const child of children) {
+    if (child.done !== done) {
+      await updateTaskStatusRecursive(child, done);
+    }
+  }
+
+  // 2. Persist the current task
+  if (task.isVirtual) {
+    delete task.isVirtual;
+    await fetch(`/api/tasks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(task)
+    });
+  } else {
+    await fetch(`/api/tasks/${task.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(task)
+    });
+  }
+
+  // 3. Handle parent: if we check a child, check parent if ALL siblings are done.
+  // If we uncheck a child, uncheck parent.
+  if (task.parentId) {
+    const parent = TASKS.find(p => p.id === task.parentId);
+    if (parent) {
+      const siblings = TASKS.filter(s => s.parentId === parent.id && s.title !== '__DELETED__');
+      const allDone = siblings.every(s => s.done);
+      if (parent.done !== allDone) {
+        await updateTaskStatusRecursive(parent, allDone);
+      }
     }
   }
 }
 
-// ─── MODAL (FAB) ─────────────────────────────────────────────────────────────
+let editTaskId = null;
+let modalTargetDate = null;
+let taskParentId = null;
+
 function cycleMobileView() {
   const views = ['today', 'week', 'month', 'goals'];
   const icons = ['○', 'w', '▦', '≡'];
@@ -446,13 +547,17 @@ function openModalForDate(dateStr) {
   openModal(null);
 }
 
-function openModal(taskId = null) {
+function openModal(taskId = null, dateStr = null, parentId = null) {
   editTaskId = taskId;
+  taskParentId = parentId;
+  modalTargetDate = dateStr || modalTargetDate;
+
   document.getElementById('add-modal').style.display = 'flex';
   const inputEl = document.getElementById('modal-input');
   
   let st = "09:00", et = "10:00";
   let curGoalId = "";
+  let isSubtask = !!parentId;
   
   if (taskId) {
     document.getElementById('modal-title').innerText = 'Edit Task';
@@ -460,15 +565,21 @@ function openModal(taskId = null) {
     if (t) {
       inputEl.value = t.title || '';
       curGoalId = t.goalId;
+      taskParentId = t.parentId;
+      isSubtask = !!t.parentId;
       if (t.time && t.time.includes('-')) {
         const pts = t.time.split('-');
         st = pts[0].trim(); et = pts[1].trim();
       } else if (t.time) { st = t.time; et = ""; }
     }
   } else {
-    document.getElementById('modal-title').innerText = 'Schedule Task';
+    document.getElementById('modal-title').innerText = parentId ? 'New Subtask' : 'Schedule Task';
     inputEl.value = '';
-    inputEl.placeholder = 'Optional specific task...';
+    inputEl.placeholder = parentId ? 'What subtask?' : 'Optional specific task...';
+    if (parentId) {
+      const p = TASKS.find(p => p.id === parentId);
+      if (p) curGoalId = p.goalId;
+    }
   }
   
   inputEl.focus();
@@ -496,13 +607,15 @@ function openModal(taskId = null) {
 
   const delBtn = taskId ? `<span title="Delete Task" onclick="deleteTask('${taskId}')" style="font-size:15px; cursor:pointer; color:var(--ink-2); display:flex; align-items:center; padding-left:4px; transition:color .1s;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--ink-2)'">🗑</span>` : '';
 
+  const timeRowDisplay = isSubtask ? 'none' : 'flex';
+
   document.getElementById('modal-fields').innerHTML = `
     <div style="flex:1;">
       <select id="modal-goal-sel" style="width:100%;background:var(--surface); border:1px solid #ccc; border-radius:4px; padding:4px 8px; font-family:var(--mono); font-size:11px;">
         ${options}
       </select>
     </div>
-    <div style="display:flex;gap:4px;align-items:center;">
+    <div style="display:${timeRowDisplay};gap:4px;align-items:center;">
       <input type="time" id="modal-time-start" style="background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; border-radius:4px; padding:4px; font-family:var(--mono); font-size:11px;" value="${st}" />
       <span style="color:var(--ink-2);font-size:10px;">-</span>
       <input type="time" id="modal-time-end" style="background:#fef2f2; color:#991b1b; border:1px solid #fecaca; border-radius:4px; padding:4px; font-family:var(--mono); font-size:11px;" value="${et}" />
@@ -513,8 +626,9 @@ function openModal(taskId = null) {
 }
 
 async function submitModal() {
-  const st = document.getElementById('modal-time-start').value || '';
-  const et = document.getElementById('modal-time-end').value || '';
+  const isSubtask = !!taskParentId;
+  const st = !isSubtask ? (document.getElementById('modal-time-start')?.value || '') : '';
+  const et = !isSubtask ? (document.getElementById('modal-time-end')?.value || '') : '';
   let mergedTime = st;
   if(st && et) mergedTime = `${st} - ${et}`;
   
@@ -522,10 +636,10 @@ async function submitModal() {
   const goalId = document.getElementById('modal-goal-sel').value || '';
   if (!titleText && !goalId) return;
 
-  // Conflict detection: check if new time overlaps existing tasks
+  // Conflict detection: only if NOT a subtask
   const targetKey = modalTargetDate || dateKey(APP_TODAY.y, APP_TODAY.m, APP_TODAY.d);
   
-  if (st && et) {
+  if (!isSubtask && st && et) {
     const newStart = parseMinutes(st);
     const newEnd = parseMinutes(et);
     const dayTasks = getTasksForDate(targetKey).filter(t => t.id !== editTaskId);
@@ -546,7 +660,7 @@ async function submitModal() {
         }
       }
     }
-  } // need at least a title or goal
+  } 
   
   if (editTaskId) {
     const t = TASKS.find(x => x.id === editTaskId);
@@ -554,6 +668,7 @@ async function submitModal() {
       t.title = titleText;
       t.goalId = goalId;
       t.time = mergedTime;
+      t.parentId = taskParentId || '';
       
       if (t.isVirtual) {
         delete t.isVirtual;
@@ -575,6 +690,7 @@ async function submitModal() {
       id: 't' + Date.now(),
       date: targetKey,
       goalId: goalId,
+      parentId: taskParentId || '',
       title: titleText,
       time: mergedTime,
       done: false
@@ -917,7 +1033,7 @@ async function loadData() {
       try { parsed = JSON.parse(g.subgoals || "[]"); } catch(e) {}
       return {...g, subgoals: parsed };
     });
-    TASKS = (data.tasks || []).map(t => ({...t, done: !!t.done}));
+    TASKS = (data.tasks || []).map(t => ({...t, done: !!t.done, parentId: t.parentId || ''}));
     hydrateVirtualTasks();
     render();
   } catch(e) {
@@ -961,6 +1077,7 @@ function hydrateVirtualTasks() {
           id: vId,
           date: loopKey,
           goalId: g.id,
+          parentId: '',
           title: '',
           time: g.defaultTime || '',
           done: false,

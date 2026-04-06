@@ -14,6 +14,13 @@ def init_db():
     with get_db() as conn:
         with open(SCHEMA_PATH, 'r') as f:
             conn.executescript(f.read())
+        
+        # Migration: Add parentId to tasks if missing
+        try:
+            conn.execute("ALTER TABLE tasks ADD COLUMN parentId TEXT DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass # Already exists
+            
         conn.commit()
 
 INITIAL_AREAS = []

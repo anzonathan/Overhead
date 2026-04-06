@@ -62,6 +62,7 @@ class TaskStruct(BaseModel):
     id: str
     date: str
     goalId: Optional[str] = ""
+    parentId: Optional[str] = ""
     title: Optional[str] = ""
     time: Optional[str] = ""
     done: bool = False
@@ -131,8 +132,8 @@ async def delete_goal(goal_id: str):
 @app.post("/api/tasks")
 async def create_task(t: TaskStruct):
     with get_db() as conn:
-        conn.execute("INSERT INTO tasks (id, date, goalId, title, time, done) VALUES (?, ?, ?, ?, ?, ?)",
-                     (t.id, t.date, t.goalId, t.title, t.time, t.done))
+        conn.execute("INSERT INTO tasks (id, date, goalId, parentId, title, time, done) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                     (t.id, t.date, t.goalId, t.parentId, t.title, t.time, t.done))
         conn.commit()
     await notify_clients()
     return {"status": "ok"}
@@ -140,8 +141,8 @@ async def create_task(t: TaskStruct):
 @app.put("/api/tasks/{task_id}")
 async def update_task(task_id: str, t: TaskStruct):
     with get_db() as conn:
-        conn.execute("UPDATE tasks SET date=?, goalId=?, title=?, time=?, done=? WHERE id=?",
-                     (t.date, t.goalId, t.title, t.time, t.done, task_id))
+        conn.execute("UPDATE tasks SET date=?, goalId=?, parentId=?, title=?, time=?, done=? WHERE id=?",
+                     (t.date, t.goalId, t.parentId, t.title, t.time, t.done, task_id))
         conn.commit()
     await notify_clients()
     return {"status": "ok"}
