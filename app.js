@@ -14,13 +14,14 @@ function getTasksForDate(dateStr) {
   const prevKey = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
   
   const spilling = TASKS.filter(t => {
+    if (t.title === '__DELETED__') return false;
     if (t.date !== prevKey) return false;
     if (!t.time || !t.time.includes('-')) return false;
     const [s, e] = t.time.split('-').map(x => parseMinutes(x.trim()));
     return e < s;
   }).map(t => ({ ...t, sortTime: 0, time: `00:00 - ${t.time.split('-')[1].trim()}` }));
 
-  const today = TASKS.filter(t => t.date === dateStr).map(t => {
+  const today = TASKS.filter(t => t.date === dateStr && t.title !== '__DELETED__').map(t => {
     let st = 0;
     if (t.time && t.time.includes('-')) st = parseMinutes(t.time.split('-')[0].trim());
     else if (t.time) st = parseMinutes(t.time.trim());
@@ -413,11 +414,20 @@ async function toggleRowTask(e, taskId) {
   const t = TASKS.find(x => x.id === taskId);
   if (t) {
     t.done = done;
-    await fetch(`/api/tasks/${taskId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(t)
-    });
+    if (t.isVirtual) {
+      delete t.isVirtual;
+      await fetch(`/api/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(t)
+      });
+    } else {
+      await fetch(`/api/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(t)
+      });
+    }
   }
 }
 
@@ -545,11 +555,20 @@ async function submitModal() {
       t.goalId = goalId;
       t.time = mergedTime;
       
-      await fetch(`/api/tasks/${t.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(t)
-      });
+      if (t.isVirtual) {
+        delete t.isVirtual;
+        await fetch(`/api/tasks`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(t)
+        });
+      } else {
+        await fetch(`/api/tasks/${t.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(t)
+        });
+      }
     }
   } else {
     const newTask = {
@@ -572,6 +591,29 @@ async function submitModal() {
 }
 
 async function deleteTask(taskId) {
+  if (taskId.startsWith('t_loop_')) {
+    const t = TASKS.find(x => x.id === taskId);
+    if (t) {
+      t.title = '__DELETED__';
+      t.time = '';
+      if (t.isVirtual) {
+        delete t.isVirtual;
+        await fetch(`/api/tasks`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(t)
+        });
+      } else {
+        await fetch(`/api/tasks/${taskId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(t)
+        });
+      }
+    }
+    closeModal();
+    return;
+  }
   await fetch(`/api/tasks/${taskId}`, { method: 'DELETE' });
   closeModal();
   await loadData();
@@ -849,8 +891,8 @@ function attachEvents() {
 
   const prev = document.getElementById('cal-prev');
   const next = document.getElementById('cal-next');
-  if (prev) prev.onclick = () => { calState.month--; if (calState.month<0){calState.month=11;calState.year--;} selectedDay=null; render(); };
-  if (next) next.onclick = () => { calState.month++; if (calState.month>11){calState.month=0;calState.year++;} selectedDay=null; render(); };
+  if (prev) prev.onclick = () => { calState.month--; if (calState.month<0){calState.month=11;calState.year--;} selectedDay=null; loadData(); };
+  if (next) next.onclick = () => { calState.month++; if (calState.month>11){calState.month=0;calState.year++;} selectedDay=null; loadData(); };
 
   document.querySelectorAll('.cal-table td[data-day]').forEach(td => {
     td.onclick = () => {
@@ -876,6 +918,7 @@ async function loadData() {
       return {...g, subgoals: parsed };
     });
     TASKS = (data.tasks || []).map(t => ({...t, done: !!t.done}));
+    hydrateVirtualTasks();
     render();
   } catch(e) {
     console.error("Backend fetch error: ", e);
@@ -883,43 +926,49 @@ async function loadData() {
   }
 }
 
-// ─── RECURRING TASK HYDRATION ─────────────────────────────────────────────────
-// Creates tasks for today from loop-type goals that don't already have one.
-async function hydrateRecurring() {
-  const todayKey = dateKey(APP_TODAY.y, APP_TODAY.m, APP_TODAY.d);
-  const todayDow = new Date(APP_TODAY.y, APP_TODAY.m, APP_TODAY.d).getDay();
+// ─── RECURRING TASK VIRTUAL HYDRATION ────────────────────────────────────────
+// Projects loop-type goals into the local memory array for up to 30 days adjacent to focus
+function hydrateVirtualTasks() {
   const loopGoals = GOALS.filter(g => g.type === 'loop');
-  let created = 0;
+  if (!loopGoals.length) return;
+
+  const y = calState.year;
+  const m = calState.month;
   
-  for (const g of loopGoals) {
-    // Check recurrence days
-    let allowedDays = [0,1,2,3,4,5]; // default: Sun-Fri
-    try { if (g.recurrenceDays) allowedDays = JSON.parse(g.recurrenceDays); } catch(e) {}
-    if (allowedDays.length && !allowedDays.includes(todayDow)) continue;
+  for (let mOffset = -1; mOffset <= 1; mOffset++) {
+    const dt = new Date(y, m + mOffset, 1);
+    const mY = dt.getFullYear();
+    const mM = dt.getMonth();
+    const daysInMonth = new Date(mY, mM+1, 0).getDate();
     
-    const exists = TASKS.some(t => t.goalId === g.id && t.date === todayKey);
-    if (exists) continue;
-    
-    const newTask = {
-      id: 't_loop_' + g.id + '_' + todayKey,
-      date: todayKey,
-      goalId: g.id,
-      title: '',
-      time: g.defaultTime || '',
-      done: false
-    };
-    
-    try {
-      await fetch('/api/tasks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newTask)
-      });
-      created++;
-    } catch(e) { /* duplicate or network error — skip */ }
+    for (let day = 1; day <= daysInMonth; day++) {
+      const loopDate = new Date(mY, mM, day);
+      const loopKey = dateKey(mY, mM, day);
+      const dow = loopDate.getDay();
+      
+      for (const g of loopGoals) {
+        let allowedDays = [0,1,2,3,4,5];
+        if (g.recurrenceDays) {
+          try { allowedDays = JSON.parse(g.recurrenceDays); } catch(e) {}
+        }
+        if (!allowedDays.includes(dow)) continue;
+        
+        const vId = 't_loop_' + g.id + '_' + loopKey;
+        // Skip if there's already an explicit task for this date and goal
+        if (TASKS.some(t => t.id === vId || (t.goalId === g.id && t.date === loopKey))) continue;
+
+        TASKS.push({
+          id: vId,
+          date: loopKey,
+          goalId: g.id,
+          title: '',
+          time: g.defaultTime || '',
+          done: false,
+          isVirtual: true
+        });
+      }
+    }
   }
-  
-  if (created > 0) await loadData();
 }
 
 updateClock();
@@ -932,7 +981,7 @@ evtSource.onmessage = async () => {
   await loadData();
 };
 
-loadData().then(() => hydrateRecurring());
+loadData();
 
 // FAB / Modal
 document.getElementById('fab').onclick = () => openModal(null);
