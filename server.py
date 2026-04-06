@@ -9,7 +9,33 @@ load_dotenv()
 
 app = FastAPI(title="Overhead AI")
 
+import asyncio
+data_version = 0
+event_clients = []
 
+async def notify_clients():
+    global data_version
+    data_version += 1
+    for q in list(event_clients):
+        try:
+            await q.put(data_version)
+        except:
+            pass
+
+@app.get("/api/events")
+async def sse_events():
+    q = asyncio.Queue()
+    event_clients.append(q)
+    async def event_stream():
+        try:
+            while True:
+                v = await q.get()
+                yield f"data: {v}\n\n"
+        except asyncio.CancelledError:
+            pass
+        finally:
+            event_clients.remove(q)
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 # ── Database API routes ────────────────────────────────────────────────────────
 import json
@@ -29,11 +55,13 @@ class GoalStruct(BaseModel):
     type: str
     area: str
     subgoals: str
+    defaultTime: Optional[str] = ""
+    recurrenceDays: Optional[str] = "[]"
 
 class TaskStruct(BaseModel):
     id: str
     date: str
-    goalId: str
+    goalId: Optional[str] = ""
     title: Optional[str] = ""
     time: Optional[str] = ""
     done: bool = False
@@ -51,71 +79,79 @@ def get_all_data():
     return {"areas": areas, "goals": goals, "tasks": tasks}
 
 @app.post("/api/areas")
-def create_area(a: AreaStruct):
+async def create_area(a: AreaStruct):
     with get_db() as conn:
         conn.execute("INSERT INTO areas (id, name, sym) VALUES (?, ?, ?)", (a.id, a.name, a.sym))
         conn.commit()
+    await notify_clients()
     return {"status": "ok"}
 
 @app.put("/api/areas/{area_id}")
-def update_area(area_id: str, a: AreaStruct):
+async def update_area(area_id: str, a: AreaStruct):
     with get_db() as conn:
         conn.execute("UPDATE areas SET name=?, sym=? WHERE id=?", (a.name, a.sym, area_id))
         conn.commit()
+    await notify_clients()
     return {"status": "ok"}
 
 @app.delete("/api/areas/{area_id}")
-def delete_area(area_id: str):
+async def delete_area(area_id: str):
     with get_db() as conn:
-        # User might have goals attached. We could cascade delete or orphan. Lets cascade.
         conn.execute("DELETE FROM areas WHERE id=?", (area_id,))
         conn.commit()
+    await notify_clients()
     return {"status": "ok"}
 
 @app.post("/api/goals")
-def create_goal(goal: GoalStruct):
+async def create_goal(goal: GoalStruct):
     with get_db() as conn:
-        conn.execute("INSERT INTO goals (id, title, scale, type, area, subgoals) VALUES (?, ?, ?, ?, ?, ?)",
-                     (goal.id, goal.title, goal.scale, goal.type, goal.area, goal.subgoals))
+        conn.execute("INSERT INTO goals (id, title, scale, type, area, subgoals, defaultTime, recurrenceDays) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                     (goal.id, goal.title, goal.scale, goal.type, goal.area, goal.subgoals, goal.defaultTime, goal.recurrenceDays))
         conn.commit()
+    await notify_clients()
     return {"status": "ok"}
 
 @app.put("/api/goals/{goal_id}")
-def update_goal(goal_id: str, goal: GoalStruct):
+async def update_goal(goal_id: str, goal: GoalStruct):
     with get_db() as conn:
-        conn.execute("UPDATE goals SET title=?, scale=?, type=?, area=?, subgoals=? WHERE id=?",
-                     (goal.title, goal.scale, goal.type, goal.area, goal.subgoals, goal_id))
+        conn.execute("UPDATE goals SET title=?, scale=?, type=?, area=?, subgoals=?, defaultTime=?, recurrenceDays=? WHERE id=?",
+                     (goal.title, goal.scale, goal.type, goal.area, goal.subgoals, goal.defaultTime, goal.recurrenceDays, goal_id))
         conn.commit()
+    await notify_clients()
     return {"status": "ok"}
 
 @app.delete("/api/goals/{goal_id}")
-def delete_goal(goal_id: str):
+async def delete_goal(goal_id: str):
     with get_db() as conn:
         conn.execute("DELETE FROM goals WHERE id=?", (goal_id,))
         conn.commit()
+    await notify_clients()
     return {"status": "ok"}
 
 @app.post("/api/tasks")
-def create_task(t: TaskStruct):
+async def create_task(t: TaskStruct):
     with get_db() as conn:
         conn.execute("INSERT INTO tasks (id, date, goalId, title, time, done) VALUES (?, ?, ?, ?, ?, ?)",
                      (t.id, t.date, t.goalId, t.title, t.time, t.done))
         conn.commit()
+    await notify_clients()
     return {"status": "ok"}
 
 @app.put("/api/tasks/{task_id}")
-def update_task(task_id: str, t: TaskStruct):
+async def update_task(task_id: str, t: TaskStruct):
     with get_db() as conn:
         conn.execute("UPDATE tasks SET date=?, goalId=?, title=?, time=?, done=? WHERE id=?",
                      (t.date, t.goalId, t.title, t.time, t.done, task_id))
         conn.commit()
+    await notify_clients()
     return {"status": "ok"}
 
 @app.delete("/api/tasks/{task_id}")
-def delete_task(task_id: str):
+async def delete_task(task_id: str):
     with get_db() as conn:
         conn.execute("DELETE FROM tasks WHERE id=?", (task_id,))
         conn.commit()
+    await notify_clients()
     return {"status": "ok"}
 
 

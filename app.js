@@ -1,6 +1,6 @@
 // ─── DATA ACCESSORS & HELPERS ────────────────────────────────────────────────
 
-const APP_TODAY = { y: 2026, m: 3, d: 5 };
+const _now = new Date(); const APP_TODAY = { y: _now.getFullYear(), m: _now.getMonth(), d: _now.getDate() };
 const DAY_NAMES   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
@@ -8,12 +8,31 @@ function getGoal(id) { return GOALS.find(g => g.id === id); }
 function getArea(id) { return AREAS.find(a => a.id === id); }
 
 function getTasksForDate(dateStr) {
-  return TASKS.filter(t => t.date === dateStr).sort((a,b) => a.time.localeCompare(b.time));
+  const [y, m, d] = dateStr.split('-');
+  const dt = new Date(+y, +m-1, +d);
+  dt.setDate(dt.getDate() - 1);
+  const prevKey = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+  
+  const spilling = TASKS.filter(t => {
+    if (t.date !== prevKey) return false;
+    if (!t.time || !t.time.includes('-')) return false;
+    const [s, e] = t.time.split('-').map(x => parseMinutes(x.trim()));
+    return e < s;
+  }).map(t => ({ ...t, sortTime: 0, time: `00:00 - ${t.time.split('-')[1].trim()}` }));
+
+  const today = TASKS.filter(t => t.date === dateStr).map(t => {
+    let st = 0;
+    if (t.time && t.time.includes('-')) st = parseMinutes(t.time.split('-')[0].trim());
+    else if (t.time) st = parseMinutes(t.time.trim());
+    return { ...t, sortTime: st };
+  });
+
+  return [...spilling, ...today].sort((a,b) => a.sortTime - b.sortTime);
 }
 
 // ─── LOCAL STATE ──────────────────────────────────────────────────────────────
 let currentView = 'today';
-let calState    = { year: 2026, month: 3 };
+let calState    = { year: _now.getFullYear(), month: _now.getMonth() };
 let selectedDay = null;
 let goalFilter  = '';
 
@@ -42,13 +61,43 @@ function updateClock() {
   const m = String(now.getMinutes()).padStart(2,'0');
   const el = document.getElementById('sb-clock');
   if (el) el.textContent = `${h}:${m}`;
+  const mClock = document.getElementById('mobile-clock');
+  if (mClock) mClock.textContent = `${h}:${m}`;
 }
 
 function closeModal() {
   document.getElementById('add-modal').style.display = 'none';
+  editTaskId = null;
+  editGoalId = null;
+  goalParentId = null;
+  goalAreaId = null;
+  editAreaId = null;
+  modalTargetDate = null;
 }
 
 // ─── RENDER TODAY ─────────────────────────────────────────────────────────────
+function parseMinutes(timeStr) {
+  if (!timeStr) return 0;
+  const parts = timeStr.split(':');
+  return parseInt(parts[0] || 0) * 60 + parseInt(parts[1] || 0);
+}
+
+function calcScheduledMins(tasks) {
+  let total = 0;
+  tasks.forEach(t => {
+    if (t.time && t.time.includes('-')) {
+      const [sStr, eStr] = t.time.split('-').map(x => x.trim());
+      const s = parseMinutes(sStr), e = parseMinutes(eStr);
+      if (e < s) {
+        total += (1440 - s);
+      } else {
+        total += (e - s);
+      }
+    }
+  });
+  return total;
+}
+
 function renderToday() {
   const key  = dateKey(APP_TODAY.y, APP_TODAY.m, APP_TODAY.d);
   const date = new Date(APP_TODAY.y, APP_TODAY.m, APP_TODAY.d);
@@ -58,21 +107,39 @@ function renderToday() {
   const jewishDate = getHebrewDate(date);
 
   const tasks = getTasksForDate(key);
+  const scheduled = tasks.filter(t => t.time && t.time.trim());
+  const unscheduled = tasks.filter(t => !t.time || !t.time.trim());
 
-  const taskRows = tasks.map(t => {
-    const goal = getGoal(t.goalId);
-    if (!goal) return '';
-    const area = getArea(goal.area);
+  const scheduledMins = calcScheduledMins(scheduled);
+  const totalMins = 24 * 60;
+  const pct = Math.min(100, Math.round((scheduledMins / totalMins) * 100));
+  const hrs = Math.floor(scheduledMins / 60);
+  const mins = scheduledMins % 60;
+  const freeH = Math.floor((totalMins - scheduledMins) / 60);
+  const freeM = (totalMins - scheduledMins) % 60;
+
+  function renderTaskRow(t) {
+    const goal = t.goalId ? getGoal(t.goalId) : null;
+    const area = goal ? getArea(goal.area) : null;
     const sym = area ? area.sym : '·';
+    const label = t.title || (goal ? goal.title : 'Untitled');
+    const timeLabel = t.time ? `<span class="row-time">${t.time}</span>` : '';
 
     return `
       <div class="day-row${t.done ? ' done' : ''}">
-        <span class="row-icon" title="${goal.area}">${sym}</span>
-        <span class="row-title ${goal.scale === 'annual' ? 'row-nonneg':''}" onclick="openModal('${t.id}')" style="cursor:pointer">${t.title || goal.title}</span>
-        <span class="row-time">${t.time}</span>
+        <span class="row-icon" title="${goal ? goal.area : 'none'}">${sym}</span>
+        <span class="row-title" onclick="openModal('${t.id}')" style="cursor:pointer">${label}</span>
+        ${timeLabel}
         <span class="row-cb${t.done ? ' checked' : ''}" onclick="toggleRowTask(event, '${t.id}')">✓</span>
       </div>`;
-  }).join('');
+  }
+
+  const scheduledRows = scheduled.map(renderTaskRow).join('');
+  const unscheduledRows = unscheduled.map(renderTaskRow).join('');
+
+  const totalTasks = tasks.length;
+  const doneTasks = tasks.filter(t => t.done).length;
+  const taskPct = totalTasks ? Math.round((doneTasks / totalTasks) * 100) : 0;
 
   return `
     <div class="view-wrap">
@@ -87,9 +154,15 @@ function renderToday() {
           <div class="hero-day">${day}</div>
         </div>
       </div>
-      <div class="day-list">
-        ${taskRows || '<p style="color:var(--ink-2);font-family:var(--mono);font-size:12px;">No tasks assigned today.</p>'}
+
+      <div style="font-family:var(--mono); font-size:10px; color:var(--ink-2); margin-bottom:16px; display:flex; justify-content:space-between;">
+        <span>${doneTasks}/${totalTasks} tasks done</span>
+        <span>${taskPct}%</span>
       </div>
+
+      ${scheduledRows ? `<div class="list-section">Scheduled</div><div class="day-list">${scheduledRows}</div>` : ''}
+      ${unscheduledRows ? `<div class="list-section">Unscheduled</div><div class="day-list">${unscheduledRows}</div>` : ''}
+      ${!scheduledRows && !unscheduledRows ? '<p style="color:var(--ink-2);font-family:var(--mono);font-size:12px;">No tasks assigned today.</p>' : ''}
     </div>`;
 }
 
@@ -112,24 +185,28 @@ function renderWeek() {
     let taskHtml = isSab
       ? `<p style="color:#dc2626;font-family:var(--mono);font-size:11px;margin-bottom:12px;">⊗ SABBATH — no tasks scheduled</p>`
       : tasks.map(t => {
-          const goal = getGoal(t.goalId);
-          if(!goal) return '';
-          const area = getArea(goal.area);
+          const goal = t.goalId ? getGoal(t.goalId) : null;
+          const area = goal ? getArea(goal.area) : null;
           const sym = area ? area.sym : '·';
+          const label = t.title || (goal ? goal.title : 'Untitled');
+          const timeLabel = t.time ? `<span class="row-time">${t.time}</span>` : '';
           
           return `
           <div class="day-row${t.done ? ' done':''}" style="padding:6px 0;">
             <span class="row-icon">${sym}</span>
-            <span class="row-title" onclick="openModal('${t.id}')" style="cursor:pointer;font-size:14px;">${t.title || goal.title}</span>
-            <span class="row-time">${t.time}</span>
+            <span class="row-title" onclick="openModal('${t.id}')" style="cursor:pointer;font-size:14px;">${label}</span>
+            ${timeLabel}
             <span class="row-cb${t.done ? ' checked' : ''}" onclick="toggleRowTask(event, '${t.id}')">✓</span>
           </div>`;
         }).join('');
-        
+
+    const addBtn = isSab ? '' : `<div style="margin-top:2px;"><button class="sub-add-btn" onclick="openModalForDate('${key}')" title="Add task in this day">+</button></div>`;
+
     html += `
       <div style="margin-bottom:24px;">
         <h3 style="font-size:16px; margin-bottom:8px; border-bottom:1.5px solid var(--ink); display:inline-block;">${DAY_NAMES[d.getDay()]}, ${d.getDate()}</h3>
         ${taskHtml || '<p style="color:var(--ink-2);font-family:var(--mono);font-size:11px;">No tasks.</p>'}
+        ${addBtn}
       </div>
     `;
   }
@@ -210,9 +287,11 @@ function renderMonth() {
           </div>`;
         }).join('');
 
+    const addBtnMonth = isSab ? '' : `<span onclick="openModalForDate('${key}')" style="cursor:pointer;font-family:var(--mono);font-size:12px;color:var(--ink-2);margin-left:8px;" title="Add task">+ add task</span>`;
+
     detail = `
       <div class="cal-detail">
-        <h3>${DAY_NAMES[date.getDay()]}, ${selectedDay.d} ${MONTH_NAMES[selectedDay.m]}</h3>
+        <h3>${DAY_NAMES[date.getDay()]}, ${selectedDay.d} ${MONTH_NAMES[selectedDay.m]} ${addBtnMonth}</h3>
         ${schedRows}
       </div>`;
   }
@@ -352,6 +431,11 @@ function cycleMobileView() {
   navigate(views[idx]);
 }
 
+function openModalForDate(dateStr) {
+  modalTargetDate = dateStr;
+  openModal(null);
+}
+
 function openModal(taskId = null) {
   editTaskId = taskId;
   document.getElementById('add-modal').style.display = 'flex';
@@ -379,7 +463,7 @@ function openModal(taskId = null) {
   
   inputEl.focus();
   
-  let options = '';
+  let options = '<option value="">(No Goal)</option>';
   AREAS.forEach(a => {
     options += `<optgroup label="${a.name}">`;
     const areaGoals = GOALS.filter(g => g.area === a.id);
@@ -389,6 +473,16 @@ function openModal(taskId = null) {
     });
     options += `</optgroup>`;
   });
+  // Also list orphan goals (no area)
+  const orphanGoals = GOALS.filter(g => !g.area || !getArea(g.area));
+  if (orphanGoals.length) {
+    options += `<optgroup label="Other">`;
+    orphanGoals.forEach(g => {
+      const sel = (g.id === curGoalId) ? 'selected' : '';
+      options += `<option value="${g.id}" ${sel}>${g.title}</option>`;
+    });
+    options += `</optgroup>`;
+  }
 
   const delBtn = taskId ? `<span title="Delete Task" onclick="deleteTask('${taskId}')" style="font-size:15px; cursor:pointer; color:var(--ink-2); display:flex; align-items:center; padding-left:4px; transition:color .1s;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--ink-2)'">🗑</span>` : '';
 
@@ -415,8 +509,34 @@ async function submitModal() {
   if(st && et) mergedTime = `${st} - ${et}`;
   
   const titleText = document.getElementById('modal-input').value.trim();
-  const goalId = document.getElementById('modal-goal-sel').value;
-  if (!goalId) return;
+  const goalId = document.getElementById('modal-goal-sel').value || '';
+  if (!titleText && !goalId) return;
+
+  // Conflict detection: check if new time overlaps existing tasks
+  const targetKey = modalTargetDate || dateKey(APP_TODAY.y, APP_TODAY.m, APP_TODAY.d);
+  
+  if (st && et) {
+    const newStart = parseMinutes(st);
+    const newEnd = parseMinutes(et);
+    const dayTasks = getTasksForDate(targetKey).filter(t => t.id !== editTaskId);
+    for (const existing of dayTasks) {
+      if (existing.time && existing.time.includes('-')) {
+        const [es, ee] = existing.time.split('-').map(x => x.trim());
+        const exStart = parseMinutes(es);
+        let exEnd = parseMinutes(ee);
+        if (exEnd < exStart) exEnd += 24 * 60;
+        
+        let nEnd = newEnd;
+        if (nEnd < newStart) nEnd += 24 * 60;
+
+        if (newStart < exEnd && nEnd > exStart) {
+          const label = existing.title || 'another task';
+          alert(`Time conflict! "${label}" already occupies ${existing.time}.`);
+          return;
+        }
+      }
+    }
+  } // need at least a title or goal
   
   if (editTaskId) {
     const t = TASKS.find(x => x.id === editTaskId);
@@ -432,10 +552,9 @@ async function submitModal() {
       });
     }
   } else {
-    const key = dateKey(APP_TODAY.y, APP_TODAY.m, APP_TODAY.d);
     const newTask = {
       id: 't' + Date.now(),
-      date: key,
+      date: targetKey,
       goalId: goalId,
       title: titleText,
       time: mergedTime,
@@ -473,6 +592,9 @@ function openGoalModal(goalId = null, parentId = null, areaId = null) {
   
   let scale = 'annual';
   let type = 'linear';
+  let defSt = '';
+  let defEt = '';
+  let recDays = [0,1,2,3,4,5]; // default: Sun-Fri (exclude Sabbath)
   
   if (goalId) {
     document.getElementById('modal-title').innerText = 'Edit Goal';
@@ -481,6 +603,13 @@ function openGoalModal(goalId = null, parentId = null, areaId = null) {
       inputEl.value = g.title || '';
       scale = g.scale;
       type = g.type;
+      if (g.defaultTime && g.defaultTime.includes('-')) {
+        const pts = g.defaultTime.split('-');
+        defSt = pts[0].trim(); defEt = pts[1].trim();
+      }
+      if (g.recurrenceDays) {
+        try { recDays = JSON.parse(g.recurrenceDays); } catch(e) {}
+      }
     }
   } else {
     document.getElementById('modal-title').innerText = parentId ? 'New Sub-goal' : 'New Goal';
@@ -505,14 +634,35 @@ function openGoalModal(goalId = null, parentId = null, areaId = null) {
         <option value="weekly" ${scale==='weekly'?'selected':''}>Weekly</option>
         <option value="daily" ${scale==='daily'?'selected':''}>Daily</option>
       </select>
-      <select id="modal-goal-type" style="flex:1; background:var(--surface-alt); border:none; border-radius:4px; padding:4px 8px; font-family:var(--mono); font-size:11px; outline:none; color:var(--ink);">
+      <select id="modal-goal-type" onchange="toggleLoopTime()" style="flex:1; background:var(--surface-alt); border:none; border-radius:4px; padding:4px 8px; font-family:var(--mono); font-size:11px; outline:none; color:var(--ink);">
         <option value="linear" ${type==='linear'?'selected':''}>Linear (Once)</option>
         <option value="loop" ${type==='loop'?'selected':''}>Loop (Recurring)</option>
       </select>
     </div>
+    <div id="loop-time-row" style="display:${type==='loop'?'block':'none'}; margin-top:8px;">
+      <div style="display:flex; gap:4px; align-items:center; margin-bottom:6px;">
+        <span style="font-family:var(--mono); font-size:9px; color:var(--ink-2); text-transform:uppercase;">Default Time</span>
+        <input type="time" id="modal-loop-st" value="${defSt}" style="background:var(--surface-alt); border:none; border-radius:4px; padding:4px; font-family:var(--mono); font-size:11px; color:var(--ink);" />
+        <span style="color:var(--ink-2);font-size:10px;">-</span>
+        <input type="time" id="modal-loop-et" value="${defEt}" style="background:var(--surface-alt); border:none; border-radius:4px; padding:4px; font-family:var(--mono); font-size:11px; color:var(--ink);" />
+      </div>
+      <div style="display:flex; gap:4px; align-items:center;">
+        <span style="font-family:var(--mono); font-size:9px; color:var(--ink-2); text-transform:uppercase; margin-right:4px;">Days</span>
+        ${['S','M','T','W','T','F','S'].map((lbl,i) => {
+          const checked = recDays.includes(i) ? 'checked' : '';
+          return `<label style="display:flex;align-items:center;gap:2px;font-family:var(--mono);font-size:10px;color:var(--ink-2);cursor:pointer;"><input type="checkbox" class="loop-day-cb" value="${i}" ${checked} style="width:13px;height:13px;accent-color:var(--accent);" />${lbl}</label>`;
+        }).join('')}
+      </div>
+    </div>
     ${delBtn}
   `;
   document.getElementById('modal-submit').onclick = submitGoalModal;
+}
+
+function toggleLoopTime() {
+  const sel = document.getElementById('modal-goal-type').value;
+  const row = document.getElementById('loop-time-row');
+  if (row) row.style.display = sel === 'loop' ? 'flex' : 'none';
 }
 
 async function submitGoalModal() {
@@ -522,12 +672,27 @@ async function submitGoalModal() {
   const scale = document.getElementById('modal-goal-scale').value;
   const type = document.getElementById('modal-goal-type').value;
   
+  // Build defaultTime for loop goals
+  let defaultTime = '';
+  let recurrenceDays = '[]';
+  if (type === 'loop') {
+    const lst = document.getElementById('modal-loop-st')?.value || '';
+    const let_ = document.getElementById('modal-loop-et')?.value || '';
+    if (lst && let_) defaultTime = `${lst} - ${let_}`;
+    const cbs = document.querySelectorAll('.loop-day-cb');
+    const days = [];
+    cbs.forEach(cb => { if (cb.checked) days.push(parseInt(cb.value)); });
+    recurrenceDays = JSON.stringify(days);
+  }
+  
   if (editGoalId) {
     const g = getGoal(editGoalId);
     if (g) {
       g.title = titleText;
       g.scale = scale;
       g.type = type;
+      g.defaultTime = defaultTime;
+      g.recurrenceDays = recurrenceDays;
       await fetch(`/api/goals/${g.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -542,7 +707,7 @@ async function submitGoalModal() {
     }
     
     const newId = 'g_' + Math.random().toString(36).substr(2,6);
-    const newGoal = { id: newId, title: titleText, scale, type, area, subgoals: '[]' };
+    const newGoal = { id: newId, title: titleText, scale, type, area, subgoals: '[]', defaultTime, recurrenceDays };
     
     await fetch('/api/goals', {
       method: 'POST',
@@ -583,7 +748,7 @@ function openAreaModal(areaId = null) {
   
   let name = '';
   let sym = '⚡';
-  
+
   if (areaId) {
     const a = getArea(areaId);
     if(a) { name = a.name; sym = a.sym; }
@@ -697,19 +862,7 @@ function attachEvents() {
   });
 }
 
-function toggleTheme() {
-  const root = document.documentElement;
-  const current = root.getAttribute('data-theme');
-  const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  
-  if (current === 'dark') {
-    root.setAttribute('data-theme', 'light');
-  } else if (current === 'light') {
-    root.setAttribute('data-theme', 'dark');
-  } else {
-    root.setAttribute('data-theme', systemDark ? 'light' : 'dark');
-  }
-}
+
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 async function loadData() {
@@ -731,9 +884,56 @@ async function loadData() {
   }
 }
 
+// ─── RECURRING TASK HYDRATION ─────────────────────────────────────────────────
+// Creates tasks for today from loop-type goals that don't already have one.
+async function hydrateRecurring() {
+  const todayKey = dateKey(APP_TODAY.y, APP_TODAY.m, APP_TODAY.d);
+  const todayDow = new Date(APP_TODAY.y, APP_TODAY.m, APP_TODAY.d).getDay();
+  const loopGoals = GOALS.filter(g => g.type === 'loop');
+  let created = 0;
+  
+  for (const g of loopGoals) {
+    // Check recurrence days
+    let allowedDays = [0,1,2,3,4,5]; // default: Sun-Fri
+    try { if (g.recurrenceDays) allowedDays = JSON.parse(g.recurrenceDays); } catch(e) {}
+    if (allowedDays.length && !allowedDays.includes(todayDow)) continue;
+    
+    const exists = TASKS.some(t => t.goalId === g.id && t.date === todayKey);
+    if (exists) continue;
+    
+    const newTask = {
+      id: 't_loop_' + g.id + '_' + todayKey,
+      date: todayKey,
+      goalId: g.id,
+      title: '',
+      time: g.defaultTime || '',
+      done: false
+    };
+    
+    try {
+      await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newTask)
+      });
+      created++;
+    } catch(e) { /* duplicate or network error — skip */ }
+  }
+  
+  if (created > 0) await loadData();
+}
+
 updateClock();
 setInterval(updateClock, 30_000);
-loadData(); // REPLACES STATIC RENDER
+
+// SSE: listen for data changes instead of polling
+const evtSource = new EventSource('/api/events');
+evtSource.onmessage = async () => {
+  if (document.getElementById('add-modal').style.display === 'flex') return;
+  await loadData();
+};
+
+loadData().then(() => hydrateRecurring());
 
 // FAB / Modal
 document.getElementById('fab').onclick = () => openModal(null);

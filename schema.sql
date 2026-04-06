@@ -11,15 +11,16 @@ CREATE TABLE IF NOT EXISTS goals (
     type TEXT NOT NULL,
     area TEXT NOT NULL,
     subgoals TEXT NOT NULL DEFAULT '[]',
+    defaultTime TEXT DEFAULT '',
+    recurrenceDays TEXT DEFAULT '[]',
     FOREIGN KEY(area) REFERENCES areas(id)
 );
 
 CREATE TABLE IF NOT EXISTS tasks (
     id TEXT PRIMARY KEY,
     date TEXT NOT NULL,
-    goalId TEXT NOT NULL,
+    goalId TEXT DEFAULT '',
     title TEXT,
     time TEXT,
-    done BOOLEAN NOT NULL DEFAULT 0,
-    FOREIGN KEY(goalId) REFERENCES goals(id)
+    done BOOLEAN NOT NULL DEFAULT 0
 );

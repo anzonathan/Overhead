@@ -3,10 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light dark" />
   <title>Overhead</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <span id="mobile-clock"></span>
   <button id="mobile-toggle" title="Cycle View" onclick="cycleMobileView()">
     <span id="mobile-toggle-icon">○</span>
   </button>
@@ -31,9 +33,6 @@
       </a>
     </nav>
     <div class="sb-bottom">
-      <div id="theme-toggle" class="sb-link" onclick="toggleTheme()" title="Toggle Theme" style="margin-bottom:8px;">
-        <span class="sb-icon">◐</span>
-      </div>
       <span class="sb-time" id="sb-clock"></span>
     </div>
   </aside>

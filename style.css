@@ -78,6 +78,29 @@
   --hover-selected: rgba(255,255,255,0.08);
 }
 
+:root[data-theme="light"] {
+  --bg: #FAFAF9;
+  --surface: #FFFFFF;
+  --surface-alt: #EFEFEF;
+  --ink: #111111;
+  --ink-2: #888888;
+  --rule: #E5E5E5;
+  --red: #e53e3e;
+  --accent: #b45309;
+  --violet: #6d28d9;
+  --fab-bg: #e6e6e6;
+  --fab-hover: #d8d8d8;
+  --border-btn: #d4d4d4;
+  --sabbath-bg: #fff8f8;
+  --b-active-bg: #f0ede8;
+  --b-plan-text: #0369a1;
+  --b-plan-bg: #0369a112;
+  --b-high-bg: #6d28d912;
+  --b-life-text: #ffffff;
+  --hover-subtle: rgba(0,0,0,0.03);
+  --hover-selected: rgba(17,17,17,0.06);
+}
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
@@ -524,6 +547,13 @@ details.area[open] .chevron { transform: rotate(90deg); }
 }
 #mobile-toggle:hover { color: var(--ink); }
 
+#mobile-clock {
+  display: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-2);
+}
+
 @media (max-width: 850px) {
   #sidebar { display: none; }
   #app { margin-left: 0; }
@@ -535,4 +565,11 @@ details.area[open] .chevron { transform: rotate(90deg); }
   .cal-day-num { font-size: 10px; width: 18px; height: 18px; margin-bottom: 2px; }
 
   #mobile-toggle { display: flex; }
+  #mobile-clock {
+    display: block;
+    position: fixed;
+    top: 22px;
+    right: 56px;
+    z-index: 500;
+  }
 }
