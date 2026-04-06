@@ -1,190 +1,25 @@
-// ─── DATA ─────────────────────────────────────────────────────────────────────
+// ─── DATA ACCESSORS & HELPERS ────────────────────────────────────────────────
 
 const APP_TODAY = { y: 2026, m: 3, d: 5 };
 const DAY_NAMES   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
-// Icon per block type
-const ICONS = {
-  spiritual:   '☀',
-  health:      '◦',
-  ministry:    '◈',
-  'deep-work': '⊙',
-  class:       '◻',
-  intellectual:'◻',
-  relational:  '◇',
-  creative:    '♫',
-  rest:        '🌙',
-  sabbath:     '⊗',
-};
+function getGoal(id) { return GOALS.find(g => g.id === id); }
+function getArea(id) { return AREAS.find(a => a.id === id); }
 
-// Schedule keyed by YYYY-MM-DD
-const SCHEDULE = {
-  '2026-04-05': [
-    { time:'04:30', title:'Devotions',               type:'spiritual',   nonNeg:true  },
-    { time:'05:10', title:'Hygiene + clean spaces',  type:'health'                    },
-    { time:'09:00', title:'Church',                  type:'spiritual',   nonNeg:true  },
-    { time:'12:00', title:'Family time + calls',     type:'relational'                },
-    { time:'14:30', title:'Reading — Elon Musk bio', type:'intellectual'              },
-    { time:'17:00', title:'Overhead UI work',        type:'intellectual'              },
-    { time:'21:40', title:'Piano',                   type:'creative'                  },
-    { time:'22:30', title:'Wind-down',               type:'rest'                      },
-  ],
-  '2026-04-06': [
-    { time:'04:30', title:'Devotions',              type:'spiritual',  nonNeg:true },
-    { time:'05:10', title:'Hygiene',                type:'health'                  },
-    { time:'05:30', title:'Inspo block',            type:'deep-work'               },
-    { time:'07:00', title:'b6e block (EPD)',         type:'ministry'                },
-    { time:'10:00', title:'OOP class',              type:'class'                   },
-    { time:'13:00', title:'OS batch · deep work',   type:'deep-work'               },
-    { time:'15:30', title:'Linear Algebra Ch.1',    type:'intellectual'            },
-    { time:'21:40', title:'Piano',                  type:'creative'                },
-    { time:'22:30', title:'Wind-down',              type:'rest'                    },
-  ],
-  '2026-04-07': [
-    { time:'04:30', title:'Devotions',            type:'spiritual',  nonNeg:true },
-    { time:'05:10', title:'Hygiene',              type:'health'                  },
-    { time:'05:30', title:'Inspo block',          type:'deep-work'               },
-    { time:'07:00', title:'b6e block',            type:'ministry'                },
-    { time:'08:00', title:'Calisthenics',         type:'health'                  },
-    { time:'10:00', title:'OS class',             type:'class'                   },
-    { time:'13:00', title:'Deep work — FYP',      type:'deep-work'               },
-    { time:'21:40', title:'Piano',                type:'creative'                },
-    { time:'22:30', title:'Wind-down',            type:'rest'                    },
-  ],
-  '2026-04-08': [
-    { time:'04:30', title:'Devotions',            type:'spiritual',  nonNeg:true },
-    { time:'05:10', title:'Hygiene',              type:'health'                  },
-    { time:'05:30', title:'Inspo block',          type:'deep-work'               },
-    { time:'07:00', title:'b6e block (EPD)',      type:'ministry'                },
-    { time:'08:30', title:'Calisthenics',         type:'health'                  },
-    { time:'10:00', title:'OS batch · deep work', type:'deep-work'               },
-    { time:'13:00', title:'b6e afternoon',        type:'ministry'                },
-    { time:'15:00', title:'CSEA / SWE',           type:'ministry'                },
-    { time:'16:30', title:'SWE Chapter Meet',     type:'ministry'                },
-    { time:'18:20', title:'Cell group',           type:'spiritual',  nonNeg:true },
-    { time:'21:40', title:'Piano',                type:'creative'                },
-    { time:'22:30', title:'Wind-down',            type:'rest'                    },
-  ],
-  '2026-04-09': [
-    { time:'04:30', title:'Devotions',            type:'spiritual',  nonNeg:true },
-    { time:'05:10', title:'Hygiene',              type:'health'                  },
-    { time:'05:30', title:'Inspo block',          type:'deep-work'               },
-    { time:'07:00', title:'b6e block',            type:'ministry'                },
-    { time:'10:00', title:'DELD class',           type:'class'                   },
-    { time:'13:00', title:'Deep work — The Moon', type:'deep-work'               },
-    { time:'17:00', title:'Lidri website review', type:'ministry'                },
-    { time:'21:40', title:'Piano',                type:'creative'                },
-    { time:'22:30', title:'Wind-down',            type:'rest'                    },
-  ],
-  '2026-04-10': [
-    { time:'04:30', title:'Devotions',               type:'spiritual',  nonNeg:true },
-    { time:'05:10', title:'Hygiene',                 type:'health'                  },
-    { time:'05:30', title:'Inspo block',             type:'deep-work'               },
-    { time:'07:00', title:'b6e block',               type:'ministry'                },
-    { time:'10:00', title:'OOP class',               type:'class'                   },
-    { time:'13:00', title:'Deep work — Novice',      type:'deep-work'               },
-    { time:'16:00', title:'IBM DataScience lesson',  type:'intellectual'            },
-    { time:'21:40', title:'Piano',                   type:'creative'                },
-    { time:'22:30', title:'Wind-down',               type:'rest'                    },
-  ],
-  '2026-04-11': [
-    { time:'',      title:'SABBATH — Full rest',     type:'sabbath',    nonNeg:true },
-    { time:'morn',  title:'Calisthenics',            type:'health'                  },
-  ],
-  '2026-04-12': [
-    { time:'04:30', title:'Devotions',               type:'spiritual',  nonNeg:true },
-    { time:'09:00', title:'Church',                  type:'spiritual',  nonNeg:true },
-    { time:'12:00', title:'Family + reading',        type:'relational'              },
-  ],
-};
+function getTasksForDate(dateStr) {
+  return TASKS.filter(t => t.date === dateStr).sort((a,b) => a.time.localeCompare(b.time));
+}
 
-// Tasks keyed by YYYY-MM-DD
-const TASKS = {
-  '2026-04-05': {
-    must:   [
-      { text:'Devotions',          done:true  },
-      { text:'Church',             done:false },
-      { text:'Wind-down by 22:30', done:false },
-    ],
-    should: [
-      { text:'Read — Elon Musk bio', done:false, hint:'30 min' },
-      { text:'Call family',          done:false              },
-      { text:'Write journal entry',  done:false              },
-    ],
-    backlog:[
-      { text:'Linear Algebra Ch.1',    hint:'→ Mon 10:00' },
-      { text:'b6e EPD prep',           hint:'→ Mon 07:00' },
-      { text:'Lidri website',          hint:'→ Thu'       },
-      { text:'CSEA Discord bot',       hint:'→ Wed'       },
-      { text:'IBM DataScience lesson', hint:'→ Fri'       },
-    ],
-  },
-  '2026-04-08': {
-    must:   [
-      { text:'Devotions',                  done:false },
-      { text:'b6e EPD (LLM plan + memo)',  done:false },
-      { text:'OS batch — deep work block', done:false },
-      { text:'Cell group 18:20',           done:false },
-    ],
-    should: [
-      { text:'CSEA slides',           done:false, hint:'trim to essentials' },
-      { text:'CSEA Discord bot',      done:false                            },
-      { text:'Calisthenics',          done:false, hint:'08:30'              },
-    ],
-    backlog:[
-      { text:'Linear Algebra Ch.1',       hint:'→ Thu' },
-      { text:'DELD K-Maps + assignments', hint:'→ Thu' },
-      { text:'Blog post: Firefox to Zen', hint:'→ Fri' },
-      { text:'Indaba article start',      hint:'→ Fri' },
-      { text:'Novice backend items',      hint:'→ Fri' },
-    ],
-  },
-};
-
-// Goals
-const GOALS = [
-  { id:'spiritual',   sym:'☀',  name:'Spiritual',   color:'#b45309', goals:[
-    { n:1,  text:'Daily devotions — Proverbs + Isaiah 60 + TBIOY', badge:'active' },
-    { n:2,  text:'Sabbath weekly (24hr rest)',                       badge:'active' },
-    { n:3,  text:'Consistent chapel + Pacesetters service',          badge:'active' },
-  ]},
-  { id:'ministry',    sym:'◈',  name:'Ministry',    color:'#6d28d9', goals:[
-    { n:4,  text:'b6e — EPD, GTM, Foundation',                      badge:'high'   },
-    { n:5,  text:'CSEA SWE chapter — Discord bot, Code Challenge',   badge:'high'   },
-    { n:6,  text:'The Moon MVP',                                     badge:'high'   },
-    { n:7,  text:'Novice — UCU learning platform',                   badge:'active' },
-    { n:8,  text:'Lidri — convention + website + blog',              badge:'active' },
-    { n:9,  text:'Moments — social, gigs, album pipeline',           badge:'active' },
-  ]},
-  { id:'intellectual',sym:'◉',  name:'Intellectual',color:'#0369a1', goals:[
-    { n:10, text:'Final Year Project — Hive Mind Framework',         badge:'high'   },
-    { n:11, text:'IBM internship / Singapore application',           badge:'high'   },
-    { n:12, text:'Legal docs — Passport + Permit + Birth Cert',      badge:'high'   },
-    { n:13, text:'Ship personal website',                            badge:'active' },
-    { n:14, text:'OSS contributions — Django, Musescore, BeeAI',     badge:'active' },
-    { n:15, text:'Build Home Lab',                                   badge:'plan'   },
-    { n:16, text:'NeoVim + Arch Linux migration',                    badge:'active' },
-    { n:17, text:'Piano — structured routine + repertoire',          badge:'active' },
-    { n:18, text:'Read 20 books this year',                          badge:'active' },
-  ]},
-  { id:'health',      sym:'◎',  name:'Health',      color:'#047857', goals:[
-    { n:19, text:'Calisthenics habit (Tue/Wed/Sat)',                  badge:'active' },
-  ]},
-  { id:'relational',  sym:'◇',  name:'Relational',  color:'#be185d', goals:[
-    { n:20, text:'Weekly calls — Jeremiah, Chipo, Rutiba, Makumbi',  badge:'active' },
-    { n:21, text:'Choir, family time',                               badge:'active' },
-  ]},
-  { id:'financial',   sym:'◆',  name:'Financial',   color:'#b45309', goals:[
-    { n:22, text:'Always on a written budget',                       badge:'nonneg' },
-    { n:23, text:'6-month emergency fund',                           badge:'active' },
-  ]},
-];
-
-// ─── STATE ────────────────────────────────────────────────────────────────────
+// ─── LOCAL STATE ──────────────────────────────────────────────────────────────
 let currentView = 'today';
 let calState    = { year: 2026, month: 3 };
 let selectedDay = null;
+let goalFilter  = '';
+
+let AREAS = [];
+let GOALS = [];
+let TASKS = [];
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 function dateKey(y, m, d) {
@@ -192,6 +27,12 @@ function dateKey(y, m, d) {
 }
 function isToday(y, m, d) {
   return y === APP_TODAY.y && m === APP_TODAY.m && d === APP_TODAY.d;
+}
+function getHebrewDate(date) {
+  const jewishMonths = ["Nisan", "Iyar", "Sivan", "Tamuz", "Av", "Elul", "Tishrei", "Cheshvan", "Kislev", "Tevet", "Shvat", "Adar"];
+  const m = jewishMonths[(date.getMonth() + 3) % 12]; // crude mock
+  const y = date.getFullYear() + 3760;
+  return `${m} ${y}`;
 }
 
 // ─── CLOCK (sidebar) ──────────────────────────────────────────────────────────
@@ -203,6 +44,10 @@ function updateClock() {
   if (el) el.textContent = `${h}:${m}`;
 }
 
+function closeModal() {
+  document.getElementById('add-modal').style.display = 'none';
+}
+
 // ─── RENDER TODAY ─────────────────────────────────────────────────────────────
 function renderToday() {
   const key  = dateKey(APP_TODAY.y, APP_TODAY.m, APP_TODAY.d);
@@ -210,32 +55,24 @@ function renderToday() {
   const dd   = String(APP_TODAY.d).padStart(2, '0');
   const mon  = MONTH_NAMES[APP_TODAY.m].slice(0,3) + "'" + String(APP_TODAY.y).slice(2);
   const day  = DAY_NAMES[date.getDay()];
+  const jewishDate = getHebrewDate(date);
 
-  const blocks = SCHEDULE[key] || [];
-  const tasks  = TASKS[key];
+  const tasks = getTasksForDate(key);
 
-  // Schedule rows
-  const schedRows = blocks.map(b => `
-    <div class="day-row">
-      <span class="row-icon">${ICONS[b.type] || '·'}</span>
-      <span class="row-title${b.nonNeg ? ' row-nonneg' : ''}">${b.title}</span>
-      <span class="row-time">${b.time}</span>
-    </div>`).join('');
+  const taskRows = tasks.map(t => {
+    const goal = getGoal(t.goalId);
+    if (!goal) return '';
+    const area = getArea(goal.area);
+    const sym = area ? area.sym : '·';
 
-  // Task rows (must + should + backlog)
-  let taskRows = '';
-  if (tasks) {
-    const toRow = (item, muted=false) => `
-      <div class="day-row${item.done ? ' done' : ''}${muted ? ' muted' : ''}" onclick="toggleRowTask(this)">
-        <span class="row-cb${item.done ? ' checked' : ''}">✓</span>
-        <span class="row-title">${item.text}${item.hint ? `<span style="font-size:11px;color:#bbb;margin-left:6px;">${item.hint}</span>` : ''}</span>
-        <span class="row-time"></span>
+    return `
+      <div class="day-row${t.done ? ' done' : ''}">
+        <span class="row-icon" title="${goal.area}">${sym}</span>
+        <span class="row-title ${goal.scale === 'annual' ? 'row-nonneg':''}" onclick="openModal('${t.id}')" style="cursor:pointer">${t.title || goal.title}</span>
+        <span class="row-time">${t.time}</span>
+        <span class="row-cb${t.done ? ' checked' : ''}" onclick="toggleRowTask(event, '${t.id}')">✓</span>
       </div>`;
-
-    if (tasks.must.length)   taskRows += `<div class="list-section">must</div>` + tasks.must.map(i => toRow(i)).join('');
-    if (tasks.should.length) taskRows += `<div class="list-section">should</div>` + tasks.should.map(i => toRow(i)).join('');
-    if (tasks.backlog.length) taskRows += `<div class="list-section">backlog</div>` + tasks.backlog.map(i => toRow(i, true)).join('');
-  }
+  }).join('');
 
   return `
     <div class="view-wrap">
@@ -245,19 +82,63 @@ function renderToday() {
           <span class="hero-dot"></span>
         </div>
         <div class="hero-right">
+          <div class="hero-month" style="font-family:var(--mono);color:var(--ink-2);font-size:11px;margin-bottom:2px;">${jewishDate}</div>
           <div class="hero-month">${mon}</div>
           <div class="hero-day">${day}</div>
         </div>
       </div>
       <div class="day-list">
-        ${schedRows}
-        ${taskRows}
+        ${taskRows || '<p style="color:var(--ink-2);font-family:var(--mono);font-size:12px;">No tasks assigned today.</p>'}
       </div>
     </div>`;
 }
 
 // ─── RENDER WEEK ──────────────────────────────────────────────────────────────
 function renderWeek() {
+  const todayDate = new Date();
+  
+  let html = `<div class="view-wrap">
+    <div class="week-hero">
+      <h1>This Week</h1>
+    </div><div class="week-list">`;
+    
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(todayDate);
+    d.setDate(todayDate.getDate() + i);
+    const key = dateKey(d.getFullYear(), d.getMonth(), d.getDate());
+    const isSab = d.getDay() === 6;
+    const tasks = getTasksForDate(key);
+    
+    let taskHtml = isSab
+      ? `<p style="color:#dc2626;font-family:var(--mono);font-size:11px;margin-bottom:12px;">⊗ SABBATH — no tasks scheduled</p>`
+      : tasks.map(t => {
+          const goal = getGoal(t.goalId);
+          if(!goal) return '';
+          const area = getArea(goal.area);
+          const sym = area ? area.sym : '·';
+          
+          return `
+          <div class="day-row${t.done ? ' done':''}" style="padding:6px 0;">
+            <span class="row-icon">${sym}</span>
+            <span class="row-title" onclick="openModal('${t.id}')" style="cursor:pointer;font-size:14px;">${t.title || goal.title}</span>
+            <span class="row-time">${t.time}</span>
+            <span class="row-cb${t.done ? ' checked' : ''}" onclick="toggleRowTask(event, '${t.id}')">✓</span>
+          </div>`;
+        }).join('');
+        
+    html += `
+      <div style="margin-bottom:24px;">
+        <h3 style="font-size:16px; margin-bottom:8px; border-bottom:1.5px solid var(--ink); display:inline-block;">${DAY_NAMES[d.getDay()]}, ${d.getDate()}</h3>
+        ${taskHtml || '<p style="color:var(--ink-2);font-family:var(--mono);font-size:11px;">No tasks.</p>'}
+      </div>
+    `;
+  }
+  html += `</div></div>`;
+  return html;
+}
+
+// ─── RENDER MONTH ─────────────────────────────────────────────────────────────
+function renderMonth() {
   const { year, month } = calState;
   const firstDay    = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month+1, 0).getDate();
@@ -281,16 +162,20 @@ function renderWeek() {
       const isT     = isToday(year, month, d);
       const isSel   = selectedDay && selectedDay.d===d && selectedDay.m===month && selectedDay.y===year;
       const cls     = [isSab?'sabbath':'', isT?'today':'', isSel?'selected':''].filter(Boolean).join(' ');
-      const blocks  = SCHEDULE[key] || [];
+      
+      const tasksToday = getTasksForDate(key);
 
       const preview = isSab
         ? `<div class="cal-sabbath-tag">⊗ sabbath</div>`
-        : blocks.slice(0, 4).map(b => `
-            <div class="cal-ev">
-              <span class="cal-ev-t">${b.time}</span>
-              <span class="cal-ev-n">${b.title.toLowerCase()}</span>
-            </div>`).join('') +
-          (blocks.length > 4 ? `<div class="cal-ev-more">+${blocks.length-4}</div>` : '');
+        : tasksToday.slice(0, 4).map(t => {
+            const g = getGoal(t.goalId);
+            return `
+              <div class="cal-ev${t.done ? ' done':''}">
+                <span class="cal-ev-t">${t.time}</span>
+                <span class="cal-ev-n">${g ? g.title.toLowerCase() : '...'}</span>
+              </div>`;
+          }).join('') +
+          (tasksToday.length > 4 ? `<div class="cal-ev-more">+${tasksToday.length-4}</div>` : '');
 
       cells += `
         <td class="${cls}" data-day="${d}" data-month="${month}" data-year="${year}">
@@ -307,16 +192,23 @@ function renderWeek() {
     const key    = dateKey(selectedDay.y, selectedDay.m, selectedDay.d);
     const date   = new Date(selectedDay.y, selectedDay.m, selectedDay.d);
     const isSab  = date.getDay() === 6;
-    const blocks = SCHEDULE[key] || [];
+    const tasks  = getTasksForDate(key);
 
     const schedRows = isSab
-      ? `<p style="color:#e53e3e;font-family:var(--mono);font-size:12px;">⊗ SABBATH — no work scheduled</p>`
-      : blocks.map(b => `
-          <div class="day-row">
-            <span class="row-icon">${ICONS[b.type]||'·'}</span>
-            <span class="row-title${b.nonNeg?' row-nonneg':''}">${b.title}</span>
-            <span class="row-time">${b.time}</span>
-          </div>`).join('');
+      ? `<p style="color:#e53e3e;font-family:var(--mono);font-size:12px;">⊗ SABBATH — no tasks scheduled</p>`
+      : tasks.map(t => {
+          const goal = getGoal(t.goalId);
+          if(!goal) return '';
+          const area = getArea(goal.area);
+          const sym = area ? area.sym : '·';
+        return `
+          <div class="day-row${t.done ? ' done':''}">
+            <span class="row-icon">${sym}</span>
+            <span class="row-title" onclick="openModal('${t.id}')" style="cursor:pointer">${t.title || goal.title}</span>
+            <span class="row-time">${t.time}</span>
+            <span class="row-cb${t.done ? ' checked' : ''}" onclick="toggleRowTask(event, '${t.id}')">✓</span>
+          </div>`;
+        }).join('');
 
     detail = `
       <div class="cal-detail">
@@ -325,10 +217,13 @@ function renderWeek() {
       </div>`;
   }
 
+  const hebrewApprox = getHebrewDate(new Date(year, month, 15));
+  const monthTag = `<span style="font-family:var(--sans); font-size:16px; color:var(--ink-2); margin-left:12px; font-weight:400;">${hebrewApprox}</span>`;
+
   return `
     <div class="view-wrap">
       <div class="week-hero">
-        <h1>${MONTH_NAMES[month]} ${year}</h1>
+        <h1>${MONTH_NAMES[month]} ${year}${monthTag}</h1>
         <div class="cal-btns">
           <button id="cal-prev">←</button>
           <button id="cal-next">→</button>
@@ -343,123 +238,424 @@ function renderWeek() {
 }
 
 // ─── RENDER GOALS ─────────────────────────────────────────────────────────────
+function renderGoalNode(goalId, depth) {
+  const goal = getGoal(goalId);
+  if (!goal) return '';
+  
+  let match = true;
+  if (goalFilter) match = (goal.scale === goalFilter);
+  
+  let childrenHtml = '';
+  if (goal.subgoals && goal.subgoals.length > 0) {
+    childrenHtml = goal.subgoals.map(sid => renderGoalNode(sid, depth+1)).join('');
+  }
+  
+  // If it doesn't match the filter AND none of its children matched either (which would be childrenHtml != ''), hide it entirely.
+  if (!match && !childrenHtml && goalFilter) return '';
+
+  const typeSym = goal.type === 'loop' ? '↻' : '→';
+  const badgeClass = goal.scale === 'life' ? 'b-life' : (goal.scale === 'annual' ? 'b-plan' : (goal.scale === 'monthly' ? 'b-nonneg' : (goal.scale === 'weekly' ? 'b-high' : 'b-active')));
+  
+  return `
+    <div class="goal-node depth-${depth}">
+      <div class="goal-row">
+        <span class="goal-type-sym">${typeSym}</span>
+        <span class="goal-txt" style="cursor:pointer;" onclick="openGoalModal('${goal.id}')">${goal.title}</span>
+        <span class="badge ${badgeClass}">${goal.scale.toUpperCase()}</span>
+        <button class="sub-add-btn" onclick="openGoalModal(null, '${goal.id}')">+</button>
+      </div>
+      ${childrenHtml}
+    </div>`;
+}
+
+function updateGoalFilter(val) {
+  goalFilter = val;
+  render();
+}
+
 function renderGoals() {
-  const badgeMap = {
-    active:['b-active','ACTIVE'], high:['b-high','HIGH'],
-    plan:  ['b-plan','PLAN'],     nonneg:['b-nonneg','NON-NEG'],
-  };
-
-  const areas = GOALS.map(area => {
-    const rows = area.goals.map(g => {
-      const [cls, label] = badgeMap[g.badge] || ['b-active','ACTIVE'];
-      return `
-        <div class="goal-row">
-          <span class="goal-num">${g.n}</span>
-          <span class="goal-txt">${g.text}</span>
-          <span class="badge ${cls}">${label}</span>
-        </div>`;
-    }).join('');
-
-    return `
-      <details class="area">
+  let areasHTML = '';
+  AREAS.forEach(area => {
+    const rootsInArea = GOALS.filter(g => g.area === area.id && !GOALS.some(parent => parent.subgoals && parent.subgoals.includes(g.id)));
+    
+    // Evaluate if any goals in this area will actually render
+    let areaHtml = rootsInArea.map(g => renderGoalNode(g.id, 0)).join('');
+    
+    if (goalFilter && !areaHtml) return; // Hide area completely if no matches
+    
+    areasHTML += `
+      <details class="area" open>
         <summary>
-          <span class="area-sym" style="color:${area.color}">${area.sym}</span>
-          <span class="area-name">${area.name}</span>
-          <span class="area-cnt">${area.goals.length}</span>
-          <span class="chevron">›</span>
+          <span class="area-sym">${area.sym}</span>
+          <span class="area-name" onclick="event.preventDefault(); openAreaModal('${area.id}')" style="cursor:pointer" title="Edit Category">${area.name}</span>
+          <span class="area-cnt">${rootsInArea.length} root</span>
+          <span class="chevron">▶</span>
         </summary>
         <div class="area-goals">
-          ${rows}
+          ${areaHtml}
           <div class="goal-add-row">
-            <span class="goal-add-btn" onclick="showGoalTaskForm(this)">+ task</span>
-            <div class="goal-add-form">
-              <span style="font-family:var(--mono);font-size:12px;color:#ccc;">[ ]</span>
-              <input type="text" class="add-task-input"
-                placeholder="new task under ${area.name.toLowerCase()}..."
-                onkeydown="submitGoalTask(event,this)">
-            </div>
+            <span class="goal-add-btn" onclick="openGoalModal(null, null, '${area.id}')">+ new root goal</span>
           </div>
         </div>
       </details>`;
-  }).join('');
+  });
 
-  const total = GOALS.reduce((s, a) => s + a.goals.length, 0);
   return `
     <div class="view-wrap">
-      <div class="goals-hero">
-        <h1>Goal Tree</h1>
-        <p>${total} goals · 6 life areas</p>
+      <div class="goals-hero" style="display:flex; justify-content:space-between; align-items:flex-end; padding-bottom:8px; gap: 16px;">
+        <div>
+          <h1>Goal Tree</h1>
+          <p>${GOALS.length} goals · Multi-scale planning</p>
+        </div>
+        <div class="horizon-filter">
+          <div class="horizon-btn b-active ${goalFilter === '' ? '' : 'inactive'}" onclick="updateGoalFilter('')" title="All Horizons">*</div>
+          <div class="horizon-btn b-life ${goalFilter === '' || goalFilter === 'life' ? '' : 'inactive'}" onclick="updateGoalFilter('life')" title="Life">L</div>
+          <div class="horizon-btn b-plan ${goalFilter === '' || goalFilter === 'annual' ? '' : 'inactive'}" onclick="updateGoalFilter('annual')" title="Annual">A</div>
+          <div class="horizon-btn b-nonneg ${goalFilter === '' || goalFilter === 'monthly' ? '' : 'inactive'}" onclick="updateGoalFilter('monthly')" title="Monthly">M</div>
+          <div class="horizon-btn b-high ${goalFilter === '' || goalFilter === 'weekly' ? '' : 'inactive'}" onclick="updateGoalFilter('weekly')" title="Weekly">W</div>
+          <div class="horizon-btn b-active ${goalFilter === '' || goalFilter === 'daily' ? '' : 'inactive'}" onclick="updateGoalFilter('daily')" title="Daily">D</div>
+        </div>
       </div>
-      ${areas}
+      ${areasHTML}
+      <div style="margin-top:24px; padding-left:10px;">
+        <span class="goal-add-btn" onclick="openAreaModal()" style="font-size:13px;">+ new category</span>
+      </div>
     </div>`;
 }
 
 // ─── TASK INTERACTIONS ────────────────────────────────────────────────────────
-function toggleRowTask(el) {
+async function toggleRowTask(e, taskId) {
+  const cb = e.currentTarget;
+  const el = cb.closest('.day-row');
   if (el.classList.contains('muted')) return;
-  const cb = el.querySelector('.row-cb');
-  if (!cb) return;
   const done = cb.classList.toggle('checked');
   el.classList.toggle('done', done);
-}
-
-function showGoalTaskForm(btn) {
-  btn.style.display = 'none';
-  const form = btn.nextElementSibling;
-  form.style.display = 'flex';
-  form.querySelector('input').focus();
-}
-
-function submitGoalTask(e, input) {
-  if (e.key === 'Escape') {
-    const form = input.closest('.goal-add-form');
-    form.style.display = 'none';
-    form.previousElementSibling.style.display = '';
-    return;
+  
+  const t = TASKS.find(x => x.id === taskId);
+  if (t) {
+    t.done = done;
+    await fetch(`/api/tasks/${taskId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(t)
+    });
   }
-  if (e.key !== 'Enter') return;
-  const text = input.value.trim();
-  if (!text) return;
-  const form    = input.closest('.goal-add-form');
-  const addRow  = form.closest('.goal-add-row');
-  const list    = form.closest('.area-goals');
-  const item    = document.createElement('div');
-  item.className = 'goal-row new-goal';
-  item.innerHTML = `
-    <span class="goal-num">·</span>
-    <span class="goal-txt">${text}</span>
-    <span class="badge b-active">TASK</span>`;
-  list.insertBefore(item, addRow);
-  input.value = '';
 }
 
 // ─── MODAL (FAB) ─────────────────────────────────────────────────────────────
-function openModal() {
-  document.getElementById('add-modal').classList.add('open');
-  document.getElementById('modal-input').focus();
+function cycleMobileView() {
+  const views = ['today', 'week', 'month', 'goals'];
+  const icons = ['○', 'w', '▦', '≡'];
+  let idx = views.indexOf(currentView);
+  idx = (idx + 1) % views.length;
+  document.getElementById('mobile-toggle-icon').innerText = icons[idx];
+  navigate(views[idx]);
 }
-function closeModal() {
-  document.getElementById('add-modal').classList.remove('open');
-  document.getElementById('modal-input').value = '';
+
+function openModal(taskId = null) {
+  editTaskId = taskId;
+  document.getElementById('add-modal').style.display = 'flex';
+  const inputEl = document.getElementById('modal-input');
+  
+  let st = "09:00", et = "10:00";
+  let curGoalId = "";
+  
+  if (taskId) {
+    document.getElementById('modal-title').innerText = 'Edit Task';
+    const t = TASKS.find(x => x.id === taskId);
+    if (t) {
+      inputEl.value = t.title || '';
+      curGoalId = t.goalId;
+      if (t.time && t.time.includes('-')) {
+        const pts = t.time.split('-');
+        st = pts[0].trim(); et = pts[1].trim();
+      } else if (t.time) { st = t.time; et = ""; }
+    }
+  } else {
+    document.getElementById('modal-title').innerText = 'Schedule Task';
+    inputEl.value = '';
+    inputEl.placeholder = 'Optional specific task...';
+  }
+  
+  inputEl.focus();
+  
+  let options = '';
+  AREAS.forEach(a => {
+    options += `<optgroup label="${a.name}">`;
+    const areaGoals = GOALS.filter(g => g.area === a.id);
+    areaGoals.forEach(g => {
+      const sel = (g.id === curGoalId) ? 'selected' : '';
+      options += `<option value="${g.id}" ${sel}>${g.title}</option>`;
+    });
+    options += `</optgroup>`;
+  });
+
+  const delBtn = taskId ? `<span title="Delete Task" onclick="deleteTask('${taskId}')" style="font-size:15px; cursor:pointer; color:var(--ink-2); display:flex; align-items:center; padding-left:4px; transition:color .1s;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--ink-2)'">🗑</span>` : '';
+
+  document.getElementById('modal-fields').innerHTML = `
+    <div style="flex:1;">
+      <select id="modal-goal-sel" style="width:100%;background:var(--surface); border:1px solid #ccc; border-radius:4px; padding:4px 8px; font-family:var(--mono); font-size:11px;">
+        ${options}
+      </select>
+    </div>
+    <div style="display:flex;gap:4px;align-items:center;">
+      <input type="time" id="modal-time-start" style="background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; border-radius:4px; padding:4px; font-family:var(--mono); font-size:11px;" value="${st}" />
+      <span style="color:var(--ink-2);font-size:10px;">-</span>
+      <input type="time" id="modal-time-end" style="background:#fef2f2; color:#991b1b; border:1px solid #fecaca; border-radius:4px; padding:4px; font-family:var(--mono); font-size:11px;" value="${et}" />
+    </div>
+    ${delBtn}
+  `;
+  document.getElementById('modal-submit').onclick = submitModal;
 }
-function submitModal() {
-  const text = document.getElementById('modal-input').value.trim();
-  if (!text) return;
-  // If we're in today view, add the task to the DOM live
-  if (currentView === 'today') {
-    const list = document.querySelector('.day-list');
-    if (list) {
-      const row = document.createElement('div');
-      row.className = 'day-row';
-      row.setAttribute('onclick', 'toggleRowTask(this)');
-      row.innerHTML = `
-        <span class="row-cb">✓</span>
-        <span class="row-title">${text}</span>
-        <span class="row-time"></span>`;
-      list.appendChild(row);
+
+async function submitModal() {
+  const st = document.getElementById('modal-time-start').value || '';
+  const et = document.getElementById('modal-time-end').value || '';
+  let mergedTime = st;
+  if(st && et) mergedTime = `${st} - ${et}`;
+  
+  const titleText = document.getElementById('modal-input').value.trim();
+  const goalId = document.getElementById('modal-goal-sel').value;
+  if (!goalId) return;
+  
+  if (editTaskId) {
+    const t = TASKS.find(x => x.id === editTaskId);
+    if (t) {
+      t.title = titleText;
+      t.goalId = goalId;
+      t.time = mergedTime;
+      
+      await fetch(`/api/tasks/${t.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(t)
+      });
+    }
+  } else {
+    const key = dateKey(APP_TODAY.y, APP_TODAY.m, APP_TODAY.d);
+    const newTask = {
+      id: 't' + Date.now(),
+      date: key,
+      goalId: goalId,
+      title: titleText,
+      time: mergedTime,
+      done: false
+    };
+    await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newTask)
+    });
+  }
+  
+  await loadData();
+  closeModal();
+}
+
+async function deleteTask(taskId) {
+  await fetch(`/api/tasks/${taskId}`, { method: 'DELETE' });
+  closeModal();
+  await loadData();
+}
+
+// ─── GOAL MODAL ──────────────────────────────────────────────────────────────
+let editGoalId = null;
+let goalParentId = null;
+let goalAreaId = null;
+
+function openGoalModal(goalId = null, parentId = null, areaId = null) {
+  editGoalId = goalId;
+  goalParentId = parentId;
+  goalAreaId = areaId;
+  
+  document.getElementById('add-modal').style.display = 'flex';
+  const inputEl = document.getElementById('modal-input');
+  
+  let scale = 'annual';
+  let type = 'linear';
+  
+  if (goalId) {
+    document.getElementById('modal-title').innerText = 'Edit Goal';
+    const g = getGoal(goalId);
+    if (g) {
+      inputEl.value = g.title || '';
+      scale = g.scale;
+      type = g.type;
+    }
+  } else {
+    document.getElementById('modal-title').innerText = parentId ? 'New Sub-goal' : 'New Goal';
+    inputEl.value = '';
+    inputEl.placeholder = 'Goal title...';
+    if (parentId) {
+      const p = getGoal(parentId);
+      if (p) scale = p.scale === 'life' ? 'annual' : (p.scale === 'annual' ? 'monthly' : 'weekly');
     }
   }
+  
+  inputEl.focus();
+
+  const delBtn = goalId ? `<span title="Delete Goal" onclick="deleteGoal('${goalId}')" style="font-size:15px; cursor:pointer; color:var(--ink-2); display:flex; align-items:center; padding-left:4px; transition:color .1s;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--ink-2)'">🗑</span>` : '';
+
+  document.getElementById('modal-fields').innerHTML = `
+    <div style="flex:1; display:flex; gap:8px;">
+      <select id="modal-goal-scale" style="flex:1; background:var(--surface-alt); border:none; border-radius:4px; padding:4px 8px; font-family:var(--mono); font-size:11px; outline:none; color:var(--ink);">
+        <option value="life" ${scale==='life'?'selected':''}>Life</option>
+        <option value="annual" ${scale==='annual'?'selected':''}>Annual</option>
+        <option value="monthly" ${scale==='monthly'?'selected':''}>Monthly</option>
+        <option value="weekly" ${scale==='weekly'?'selected':''}>Weekly</option>
+        <option value="daily" ${scale==='daily'?'selected':''}>Daily</option>
+      </select>
+      <select id="modal-goal-type" style="flex:1; background:var(--surface-alt); border:none; border-radius:4px; padding:4px 8px; font-family:var(--mono); font-size:11px; outline:none; color:var(--ink);">
+        <option value="linear" ${type==='linear'?'selected':''}>Linear (Once)</option>
+        <option value="loop" ${type==='loop'?'selected':''}>Loop (Recurring)</option>
+      </select>
+    </div>
+    ${delBtn}
+  `;
+  document.getElementById('modal-submit').onclick = submitGoalModal;
+}
+
+async function submitGoalModal() {
+  const titleText = document.getElementById('modal-input').value.trim();
+  if (!titleText) return;
+  
+  const scale = document.getElementById('modal-goal-scale').value;
+  const type = document.getElementById('modal-goal-type').value;
+  
+  if (editGoalId) {
+    const g = getGoal(editGoalId);
+    if (g) {
+      g.title = titleText;
+      g.scale = scale;
+      g.type = type;
+      await fetch(`/api/goals/${g.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({...g, subgoals: JSON.stringify(g.subgoals)})
+      });
+    }
+  } else {
+    let area = goalAreaId;
+    if (goalParentId) {
+      const p = getGoal(goalParentId);
+      if (p) area = p.area;
+    }
+    
+    const newId = 'g_' + Math.random().toString(36).substr(2,6);
+    const newGoal = { id: newId, title: titleText, scale, type, area, subgoals: '[]' };
+    
+    await fetch('/api/goals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newGoal)
+    });
+
+    if (goalParentId) {
+      const p = getGoal(goalParentId);
+      if (p) {
+        p.subgoals.push(newId);
+        await fetch(`/api/goals/${p.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({...p, subgoals: JSON.stringify(p.subgoals)})
+        });
+      }
+    }
+  }
+  
+  await loadData();
   closeModal();
+}
+
+async function deleteGoal(goalId) {
+  await fetch(`/api/goals/${goalId}`, { method: 'DELETE' });
+  closeModal();
+  await loadData();
+}
+
+// ─── AREA MODAL ──────────────────────────────────────────────────────────────
+let editAreaId = null;
+
+function openAreaModal(areaId = null) {
+  editAreaId = areaId;
+  document.getElementById('add-modal').style.display = 'flex';
+  const inputEl = document.getElementById('modal-input');
+  
+  let name = '';
+  let sym = '⚡';
+  
+  if (areaId) {
+    const a = getArea(areaId);
+    if(a) { name = a.name; sym = a.sym; }
+    document.getElementById('modal-title').innerText = 'Edit Category';
+  } else {
+    document.getElementById('modal-title').innerText = 'New Category';
+  }
+  
+  inputEl.value = name;
+  inputEl.placeholder = 'Category Name...';
+  inputEl.focus();
+
+  const EMOJIS = ["⚡", "♥", "⌂", "✧", "🛠", "📚", "🚀", "💰", "🎨", "🌿", "🧠", "🔥", "🛡", "⚙", "🎯", "🌟", "💡", "🌍", "💼", "🎵", "🏆", "✏"];
+  
+  const gridHtml = EMOJIS.map(e => `
+    <div onclick="selectAreaEmoji(this, '${e}')" class="emoji-btn" style="cursor:pointer; width:32px; height:32px; display:flex; align-items:center; justify-content:center; border-radius:6px; font-size:16px; transition:background .1s; ${e === sym ? 'background:var(--ink); color:var(--bg);' : 'background:var(--surface-alt); color:var(--ink);'}">${e}</div>
+  `).join('');
+
+  const delBtn = areaId ? `<span title="Delete Category" onclick="deleteArea('${areaId}')" style="font-size:15px; cursor:pointer; color:var(--ink-2); display:flex; align-items:center; transition:color .1s;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--ink-2)'">🗑</span>` : '';
+
+  document.getElementById('modal-fields').innerHTML = `
+    <div style="width:100%; display:flex; flex-direction:column; gap:4px;">
+      <div style="font-family:var(--mono); font-size:10px; color:var(--ink-2); text-transform:uppercase; letter-spacing:.05em;">Select Icon</div>
+      <div style="display:flex; flex-wrap:wrap; gap:6px; max-height:120px; overflow-y:auto; padding-bottom:8px; margin-bottom:8px;" id="emoji-grid">
+        ${gridHtml}
+      </div>
+      <input type="hidden" id="modal-area-sym" value="${sym}" />
+      <div style="display:flex; justify-content:flex-end;">${delBtn}</div>
+    </div>
+  `;
+  document.getElementById('modal-submit').onclick = submitAreaModal;
+}
+
+window.selectAreaEmoji = function(el, emoji) {
+  document.getElementById('modal-area-sym').value = emoji;
+  const sibs = document.getElementById('emoji-grid').children;
+  for(let i=0; i<sibs.length; i++) {
+    sibs[i].style.background = 'var(--surface-alt)';
+    sibs[i].style.color = 'var(--ink)';
+  }
+  el.style.background = 'var(--ink)';
+  el.style.color = 'var(--bg)';
+}
+
+async function submitAreaModal() {
+  const name = document.getElementById('modal-input').value.trim();
+  if (!name) return;
+  const sym = document.getElementById('modal-area-sym').value.trim() || '·';
+  
+  if (editAreaId) {
+    await fetch(`/api/areas/${editAreaId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: editAreaId, name, sym })
+    });
+  } else {
+    const newId = name.toLowerCase().replace(/[^a-z0-9]/g, '') + Math.random().toString(36).substr(2,4);
+    await fetch('/api/areas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: newId, name, sym })
+    });
+  }
+  
+  await loadData();
+  closeModal();
+}
+
+async function deleteArea(areaId) {
+  await fetch(`/api/areas/${areaId}`, { method: 'DELETE' });
+  closeModal();
+  await loadData();
 }
 
 // ─── RENDER & ROUTER ─────────────────────────────────────────────────────────
@@ -476,6 +672,7 @@ function render() {
   switch (currentView) {
     case 'today': main.innerHTML = renderToday(); break;
     case 'week':  main.innerHTML = renderWeek();  break;
+    case 'month': main.innerHTML = renderMonth(); break;
     case 'goals': main.innerHTML = renderGoals(); break;
   }
   attachEvents();
@@ -500,13 +697,46 @@ function attachEvents() {
   });
 }
 
+function toggleTheme() {
+  const root = document.documentElement;
+  const current = root.getAttribute('data-theme');
+  const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  
+  if (current === 'dark') {
+    root.setAttribute('data-theme', 'light');
+  } else if (current === 'light') {
+    root.setAttribute('data-theme', 'dark');
+  } else {
+    root.setAttribute('data-theme', systemDark ? 'light' : 'dark');
+  }
+}
+
 // ─── INIT ─────────────────────────────────────────────────────────────────────
+async function loadData() {
+  try {
+    const res = await fetch('/api/data');
+    if (!res.ok) throw new Error("Backend response failed");
+    const data = await res.json();
+    AREAS = data.areas || [];
+    GOALS = (data.goals || []).map(g => {
+      let parsed = [];
+      try { parsed = JSON.parse(g.subgoals || "[]"); } catch(e) {}
+      return {...g, subgoals: parsed };
+    });
+    TASKS = (data.tasks || []).map(t => ({...t, done: !!t.done}));
+    render();
+  } catch(e) {
+    console.error("Backend fetch error: ", e);
+    document.getElementById('view').innerHTML = `<div style="padding:40px;word-break:break-word;color:var(--red);">Runtime Crash: ${e.message} <br/><br/> Stack: ${e.stack}</div>`;
+  }
+}
+
 updateClock();
 setInterval(updateClock, 30_000);
-render();
+loadData(); // REPLACES STATIC RENDER
 
 // FAB / Modal
-document.getElementById('fab').onclick = openModal;
+document.getElementById('fab').onclick = () => openModal(null);
 document.getElementById('modal-close').onclick = closeModal;
 document.getElementById('modal-submit').onclick = submitModal;
 document.getElementById('modal-input').onkeydown = e => { if (e.key==='Enter') submitModal(); if (e.key==='Escape') closeModal(); };

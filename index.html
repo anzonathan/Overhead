@@ -7,25 +7,33 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <button id="mobile-toggle" title="Cycle View" onclick="cycleMobileView()">
+    <span id="mobile-toggle-icon">○</span>
+  </button>
 
   <!-- Discrete sidebar -->
   <aside id="sidebar">
-    <span class="sb-brand">oh</span>
+    <div style="padding: 0 16px; margin-bottom: 28px; height: 26px; display:flex; align-items:center; justify-content:center;">
+      <span class="sb-brand">oh</span>
+    </div>
     <nav id="sb-nav">
-      <a class="sb-link active" data-view="today">
-        ○
-        <span class="sb-tooltip">Today</span>
+      <a href="#" class="sb-link active" data-view="today">
+        <span class="sb-icon">○</span><span class="sb-tooltip">Today</span>
       </a>
-      <a class="sb-link" data-view="week">
-        ▦
-        <span class="sb-tooltip">Week</span>
+      <a href="#" class="sb-link" data-view="week">
+        <span class="sb-icon">‖</span><span class="sb-tooltip">Week</span>
       </a>
-      <a class="sb-link" data-view="goals">
-        ≡
-        <span class="sb-tooltip">Goals</span>
+      <a href="#" class="sb-link" data-view="month">
+        <span class="sb-icon">▦</span><span class="sb-tooltip">Month</span>
+      </a>
+      <a href="#" class="sb-link" data-view="goals">
+        <span class="sb-icon">≡</span><span class="sb-tooltip">Goals</span>
       </a>
     </nav>
     <div class="sb-bottom">
+      <div id="theme-toggle" class="sb-link" onclick="toggleTheme()" title="Toggle Theme" style="margin-bottom:8px;">
+        <span class="sb-icon">◐</span>
+      </div>
       <span class="sb-time" id="sb-clock"></span>
     </div>
   </aside>
@@ -36,21 +44,21 @@
   </div>
 
   <!-- FAB -->
-  <button id="fab" title="Add task">+</button>
+  <button id="fab" title="Add item">+</button>
 
-  <!-- Add task modal (bottom sheet) -->
+  <!-- Dynamic Modal (bottom sheet) -->
   <div id="add-modal">
     <div class="modal-card" style="position:relative">
       <button class="modal-close" id="modal-close">×</button>
-      <h3>New task</h3>
-      <input class="modal-input" id="modal-input" placeholder="What needs doing?" />
-      <div class="modal-row">
-        <select class="modal-select" id="modal-bucket">
-          <option value="must">[ must ]</option>
-          <option value="should" selected>[ should ]</option>
-          <option value="backlog">[ backlog ]</option>
-        </select>
-        <button class="modal-submit" id="modal-submit">Add</button>
+      <h3 id="modal-title">New Item</h3>
+      <input class="modal-input" id="modal-input" autocomplete="off" placeholder="What needs doing?" />
+      
+      <!-- Container for dynamic select fields -->
+      <div class="modal-row" id="modal-fields">
+        <!-- Fields injected by JS -->
+      </div>
+      <div style="display:flex; justify-content:flex-end; margin-top:16px;">
+        <button id="modal-submit" class="modal-submit">Save</button>
       </div>
     </div>
   </div>
