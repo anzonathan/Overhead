@@ -11,8 +11,8 @@ With SSE functioning cleanly, introducing a secure authentication abstraction co
 ### 3. Progressive Subgoal Checking
 Presently, goals act as top-level anchors for tasks. Building logic that aggregates task completions underneath a goal, and effectively transitions the Goal into a `done: true` state (and cascading upward to parent goals) is critical for macro "annual" or "life" planning closure.
 
-### 4. Advanced Midnight Conflict Detection
-While "spillover" works visually for loop tasks, true event-based cross-spans in linear one-off tasks need careful frontend validation logic improvements to handle dates seamlessly spanning days on standalone creation.
+### 4. Advanced Block Constraints & Timezone Resiliency
+Midnight-spanning and cross-boundary recurring spillover logic functions perfectly inside current local-runtime windows. Standardizing absolute UTC metrics and robust localized DST shifts will be required before opening a remote auth gateway to highly mobile users.
 
 ### 5. Deployment Configurations
 Creating optimized runtime configurations via `Docker` or explicit script mapping (e.g., Gunicorn wrapping FastAPI) is required for persistent production beyond local `.db` usage.
