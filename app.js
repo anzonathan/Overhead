@@ -555,7 +555,7 @@ function openModal(taskId = null, dateStr = null, parentId = null) {
   document.getElementById('add-modal').style.display = 'flex';
   const inputEl = document.getElementById('modal-input');
   
-  let st = "09:00", et = "10:00";
+  let st = "", et = "";
   let curGoalId = "";
   let isSubtask = !!parentId;
   

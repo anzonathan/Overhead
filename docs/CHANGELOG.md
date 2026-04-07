@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.2.1] - UX Refinements
+### Changed
+- **Unscheduled Defaults**: New tasks now default to no time (`--:--`), allowing for quick additions to the "Unscheduled" bucket without manual time clearing.
+
 ## [0.2.0] - Task Nesting & Automatic Completion
 **Overhead now supports hierarchical task structures with recursive completion constraints.**
 
