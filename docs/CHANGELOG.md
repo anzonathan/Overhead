@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.2.0] - Task Nesting & Automatic Completion
+**Overhead now supports hierarchical task structures with recursive completion constraints.**
+
+### Added
+- **Folding Subtasks**: Tasks can now be nested under parent tasks. These are rendered with a folding UI (`<details>`/`<summary>`) across Today, Week, and Month views.
+- **Recursive Deletion**: Deleting a parent task now automatically and recursively deletes all its subtasks from both the database and the UI.
+- **Visual Hierarchy**: Subtasks are visually indented with guide lines and correctly hide time displays to focus on actions.
+- **Quick-Add Subtasks**: A `+` button on every task row allows for immediate creation of nested subtasks.
+
+### Changed
+- **Automatic Completion Logic**: 
+    - Parents are now automatically marked as "done" when all their children are completed.
+    - Unchecking a child automatically unchecks the parent.
+    - Checking a parent automatically checks all its children.
+- **Schema Migration**: Added `parentId` field to the `tasks` table with an automated migration script in `db.py`.
+
+### Fixed
+- **Tally Accuracy**: Resolved an issue where the task completion tally didn't update immediately after task deletions.
+
 ## [0.1.0] - Evolution to Multiscale Intelligence
 **Overhead has officially moved towards automated, multiscale predictive intelligence and a persistent backend syncing logic.**
 

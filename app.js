@@ -707,30 +707,36 @@ async function submitModal() {
 }
 
 async function deleteTask(taskId) {
-  if (taskId.startsWith('t_loop_')) {
-    const t = TASKS.find(x => x.id === taskId);
-    if (t) {
-      t.title = '__DELETED__';
-      t.time = '';
-      if (t.isVirtual) {
-        delete t.isVirtual;
-        await fetch(`/api/tasks`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(t)
-        });
-      } else {
-        await fetch(`/api/tasks/${taskId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(t)
-        });
-      }
-    }
-    closeModal();
-    return;
+  const t = TASKS.find(x => x.id === taskId);
+  if (!t) return;
+
+  // Recursive deletion for children
+  const children = TASKS.filter(c => c.parentId === taskId && c.title !== '__DELETED__');
+  for (const child of children) {
+    await deleteTask(child.id);
   }
-  await fetch(`/api/tasks/${taskId}`, { method: 'DELETE' });
+
+  if (taskId.startsWith('t_loop_')) {
+    t.title = '__DELETED__';
+    t.time = '';
+    if (t.isVirtual) {
+      delete t.isVirtual;
+      await fetch(`/api/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(t)
+      });
+    } else {
+      await fetch(`/api/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(t)
+      });
+    }
+  } else {
+    await fetch(`/api/tasks/${taskId}`, { method: 'DELETE' });
+  }
+  
   closeModal();
   await loadData();
 }

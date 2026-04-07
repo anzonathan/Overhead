@@ -150,6 +150,12 @@ async def update_task(task_id: str, t: TaskStruct):
 @app.delete("/api/tasks/{task_id}")
 async def delete_task(task_id: str):
     with get_db() as conn:
+        # Recursive deletion: get all children first
+        children = conn.execute("SELECT id FROM tasks WHERE parentId=?", (task_id,)).fetchall()
+        for child in children:
+            # We call the same logic for each child
+            await delete_task(child['id'])
+            
         conn.execute("DELETE FROM tasks WHERE id=?", (task_id,))
         conn.commit()
     await notify_clients()

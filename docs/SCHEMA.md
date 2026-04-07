@@ -26,4 +26,5 @@ Granular actions acting upon goals or existing independently.
 - `title`: TEXT
 - `time`: TEXT (Usually 'HH:MM - HH:MM' or just 'HH:MM')
 - `goalId`: TEXT (Foreign Key linked conditionally to Goals, nullable)
+- `parentId`: TEXT (Optional ID of a parent Task for nesting)
 - `done`: BOOLEAN (Stored natively based on SQLite handling, manipulated tightly)
