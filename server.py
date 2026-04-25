@@ -177,6 +177,6 @@ app.mount("/", StaticFiles(directory="."), name="static")
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("PORT", 3000))
+    port = int(os.environ.get("PORT", 3001))
     print(f"  Overhead AI → http://localhost:{port}")
     uvicorn.run("server:app", host="0.0.0.0", port=port, reload=True)
