@@ -128,11 +128,13 @@ function renderToday() {
 
     const subtasks = tasks.filter(st => st.parentId === t.id && st.title !== '__DELETED__');
     const hasSubtasks = subtasks.length > 0;
+    const chevron = hasSubtasks ? `<span class="row-chevron"></span>` : `<span class="row-chevron-spacer"></span>`;
 
     const rowContent = `
       <div class="day-row${t.done ? ' done' : ''}">
+        ${chevron}
         <span class="row-icon" title="${goal ? goal.area : 'none'}">${sym}</span>
-        <span class="row-title" onclick="openModal('${t.id}')" style="cursor:pointer">${label}</span>
+        <span class="row-title" onclick="event.preventDefault(); openModal('${t.id}')" style="cursor:pointer">${label}</span>
         ${timeLabel}
         <button class="sub-add-btn" onclick="openModal(null, '${key}', '${t.id}')">+</button>
         <span class="row-cb${t.done ? ' checked' : ''}" onclick="toggleRowTask(event, '${t.id}')">✓</span>
@@ -143,8 +145,10 @@ function renderToday() {
       return `
         <details class="task-node depth-${isSubtask ? 'sub' : 'root'}" open>
           <summary>${rowContent}</summary>
-          <div class="task-children" style="margin-left: 24px; border-left: 1px solid var(--rule); padding-left: 10px;">
-            ${subtaskHtml}
+          <div class="task-children-wrapper">
+            <div class="task-children">
+              ${subtaskHtml}
+            </div>
           </div>
         </details>
       `;
@@ -210,11 +214,13 @@ function renderWeek() {
       
       const subtasks = tasks.filter(st => st.parentId === t.id && st.title !== '__DELETED__');
       const hasSubtasks = subtasks.length > 0;
+      const chevron = hasSubtasks ? `<span class="row-chevron"></span>` : `<span class="row-chevron-spacer"></span>`;
 
       const rowContent = `
         <div class="day-row${t.done ? ' done':''}" style="padding:6px 0;">
+          ${chevron}
           <span class="row-icon">${sym}</span>
-          <span class="row-title" onclick="openModal('${t.id}')" style="cursor:pointer;font-size:14px;">${label}</span>
+          <span class="row-title" onclick="event.preventDefault(); openModal('${t.id}')" style="cursor:pointer;font-size:14px;">${label}</span>
           ${timeLabel}
           <button class="sub-add-btn" onclick="openModal(null, '${key}', '${t.id}')">+</button>
           <span class="row-cb${t.done ? ' checked' : ''}" onclick="toggleRowTask(event, '${t.id}')">✓</span>
@@ -225,8 +231,10 @@ function renderWeek() {
         return `
           <details class="task-node depth-${isSubtask ? 'sub' : 'root'}" open>
             <summary>${rowContent}</summary>
-            <div class="task-children" style="margin-left: 20px; border-left: 1px solid var(--rule); padding-left: 10px;">
-              ${subHtml}
+            <div class="task-children-wrapper">
+              <div class="task-children">
+                ${subHtml}
+              </div>
             </div>
           </details>
         `;
@@ -318,22 +326,27 @@ function renderMonth() {
       const timeLabel = (t.time && !isSubtask) ? `<span class="row-time">${t.time}</span>` : '';
       
       const subtasks = tasks.filter(st => st.parentId === t.id && st.title !== '__DELETED__');
+      const hasSubtasks = subtasks.length > 0;
+      const chevron = hasSubtasks ? `<span class="row-chevron"></span>` : `<span class="row-chevron-spacer"></span>`;
       
       const rowContent = `
         <div class="day-row${t.done ? ' done':''}">
+          ${chevron}
           <span class="row-icon">${sym}</span>
-          <span class="row-title" onclick="openModal('${t.id}')" style="cursor:pointer">${label}</span>
+          <span class="row-title" onclick="event.preventDefault(); openModal('${t.id}')" style="cursor:pointer">${label}</span>
           ${timeLabel}
           <button class="sub-add-btn" onclick="openModal(null, '${key}', '${t.id}')">+</button>
           <span class="row-cb${t.done ? ' checked' : ''}" onclick="toggleRowTask(event, '${t.id}')">✓</span>
         </div>`;
 
-      if (subtasks.length > 0) {
+      if (hasSubtasks) {
         return `
-          <details class="task-node" open>
+          <details class="task-node depth-${isSubtask ? 'sub' : 'root'}" open>
             <summary>${rowContent}</summary>
-            <div class="task-children" style="margin-left:20px; border-left:1px solid var(--rule); padding-left:10px;">
-              ${subtasks.map(st => renderTaskRow(st, true)).join('')}
+            <div class="task-children-wrapper">
+              <div class="task-children">
+                ${subtasks.map(st => renderTaskRow(st, true)).join('')}
+              </div>
             </div>
           </details>
         `;
