@@ -203,8 +203,8 @@ body {
 
 .view-wrap {
   width: 100%;
-  max-width: 580px;
-  padding: 52px 32px 120px;
+  max-width: 720px;
+  padding: 52px 40px 120px;
   animation: fadeIn .15s ease;
 }
 @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
@@ -265,6 +265,12 @@ body {
   padding: 20px 0 10px;
 }
 
+.day-list {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
 .day-row {
   display: flex;
   align-items: center;
@@ -272,6 +278,7 @@ body {
   padding: 13px 0;
   border-bottom: 1px dashed var(--rule);
   cursor: default;
+  width: 100%;
 }
 
 .day-row:first-child { border-top: 1px dashed var(--rule); }
@@ -289,10 +296,10 @@ body {
 
 /* Flat boxed checkmark for tasks */
 .row-cb {
-  width: 14px;
-  height: 14px;
+  width: 18px; /* Slightly larger for better target */
+  height: 18px;
   border: 1.5px solid var(--border-btn);
-  border-radius: 3px;
+  border-radius: 4px;
   flex-shrink: 0;
   cursor: pointer;
   display: flex;
@@ -301,15 +308,19 @@ body {
   font-size: 11px;
   color: transparent;
   transition: border-color .15s, color .15s;
+  margin-left: auto; /* Push to the absolute end */
 }
 .row-cb:hover { border-color: var(--ink-2); }
 .row-cb.checked { color: var(--ink); border-color: var(--ink); }
 
 .row-title {
   flex: 1;
+  min-width: 0; /* CRITICAL: Allows title to shrink below its content size */
   font-size: 15px;
   font-weight: 400;
   color: var(--ink);
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .row-nonneg { font-weight: 500; }
@@ -322,7 +333,6 @@ body {
   background: var(--surface-alt);
   padding: 3px 8px;
   border-radius: 6px;
-  margin-right: 6px;
 }
 
 /* Done state */
@@ -507,7 +517,7 @@ details.goal-node summary::-webkit-details-marker { display: none; }
   background: var(--surface);
   border-radius: 20px 20px 0 0;
   padding: 28px 28px 40px;
-  width: 100%; max-width: 580px;
+  width: 100%; max-width: 720px;
   box-shadow: 0 -4px 24px rgba(0,0,0,.08);
   animation: slideUp .2s ease;
 }
@@ -593,7 +603,6 @@ details.task-node summary::-webkit-details-marker { display: none; }
   opacity: 0.3;
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s;
   flex-shrink: 0;
-  margin-left: -8px;
 }
 .row-chevron::after {
   content: '';
@@ -614,7 +623,6 @@ details[open] > summary .row-chevron::after {
 .row-chevron-spacer {
   width: 20px;
   flex-shrink: 0;
-  margin-left: -8px;
 }
 
 /* Smooth Height Animation */

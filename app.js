@@ -40,8 +40,16 @@ let goalFilter  = '';
 let AREAS = [];
 let GOALS = [];
 let TASKS = [];
+let collapsedTasks = new Set();
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
+function toggleTaskCollapse(taskId, open) {
+  if (open) {
+    collapsedTasks.delete(taskId);
+  } else {
+    collapsedTasks.add(taskId);
+  }
+}
 function dateKey(y, m, d) {
   return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
 }
@@ -142,8 +150,9 @@ function renderToday() {
 
     if (hasSubtasks) {
       const subtaskHtml = subtasks.map(st => renderTaskRow(st, true)).join('');
+      const isOpen = !collapsedTasks.has(t.id);
       return `
-        <details class="task-node depth-${isSubtask ? 'sub' : 'root'}" open>
+        <details class="task-node depth-${isSubtask ? 'sub' : 'root'}" data-id="${t.id}" ${isOpen ? 'open' : ''}>
           <summary>${rowContent}</summary>
           <div class="task-children-wrapper">
             <div class="task-children">
@@ -228,8 +237,9 @@ function renderWeek() {
 
       if (hasSubtasks) {
         const subHtml = subtasks.map(st => renderTaskRow(st, true)).join('');
+        const isOpen = !collapsedTasks.has(t.id);
         return `
-          <details class="task-node depth-${isSubtask ? 'sub' : 'root'}" open>
+          <details class="task-node depth-${isSubtask ? 'sub' : 'root'}" data-id="${t.id}" ${isOpen ? 'open' : ''}>
             <summary>${rowContent}</summary>
             <div class="task-children-wrapper">
               <div class="task-children">
@@ -340,8 +350,9 @@ function renderMonth() {
         </div>`;
 
       if (hasSubtasks) {
+        const isOpen = !collapsedTasks.has(t.id);
         return `
-          <details class="task-node depth-${isSubtask ? 'sub' : 'root'}" open>
+          <details class="task-node depth-${isSubtask ? 'sub' : 'root'}" data-id="${t.id}" ${isOpen ? 'open' : ''}>
             <summary>${rowContent}</summary>
             <div class="task-children-wrapper">
               <div class="task-children">
@@ -416,8 +427,9 @@ function renderGoalNode(goalId, depth) {
   `;
 
   if (hasChildren) {
+    const isOpen = !collapsedTasks.has(goal.id);
     return `
-      <details class="goal-node depth-${depth}" open>
+      <details class="goal-node depth-${depth}" data-id="${goal.id}" ${isOpen ? 'open' : ''}>
         <summary>${content}</summary>
         <div class="goal-children">
           ${childrenHtml}
@@ -1034,6 +1046,12 @@ function attachEvents() {
       if (td.classList.contains('sabbath')) return;
       selectedDay = { y:+td.dataset.year, m:+td.dataset.month, d:+td.dataset.day };
       render();
+    };
+  });
+
+  document.querySelectorAll('details[data-id]').forEach(details => {
+    details.ontoggle = () => {
+      toggleTaskCollapse(details.dataset.id, details.open);
     };
   });
 }
