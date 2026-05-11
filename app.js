@@ -559,8 +559,8 @@ let modalTargetDate = null;
 let taskParentId = null;
 
 function cycleMobileView() {
-  const views = ['today', 'week', 'month', 'goals'];
-  const icons = ['○', 'w', '▦', '≡'];
+  const views = ['today', 'week', 'month', 'goals', 'analytics'];
+  const icons = ['○', 'w', '▦', '≡', '⌇'];
   let idx = views.indexOf(currentView);
   idx = (idx + 1) % views.length;
   document.getElementById('mobile-toggle-icon').innerText = icons[idx];
@@ -1027,13 +1027,79 @@ function render() {
     case 'week':  main.innerHTML = renderWeek();  break;
     case 'month': main.innerHTML = renderMonth(); break;
     case 'goals': main.innerHTML = renderGoals(); break;
+    case 'analytics': main.innerHTML = renderAnalytics(); break;
   }
   attachEvents();
 }
 
+function renderAnalytics() {
+  const todayK = dateKey(APP_TODAY.y, APP_TODAY.m, APP_TODAY.d);
+  const relevantTasks = TASKS.filter(t => t.title !== '__DELETED__' && t.date <= todayK);
+  const doneTasks = relevantTasks.filter(t => t.done).length;
+  const totalTasks = relevantTasks.length;
+  const totalPct = totalTasks ? Math.round((doneTasks / totalTasks) * 100) : 0;
+
+  const last7Days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const key = dateKey(d.getFullYear(), d.getMonth(), d.getDate());
+    const dayTasks = TASKS.filter(t => t.date === key && t.title !== '__DELETED__');
+    const done = dayTasks.filter(t => t.done).length;
+    const total = dayTasks.length;
+    last7Days.push({ day: DAY_NAMES[d.getDay()].slice(0,1), pct: total ? Math.round((done/total)*100) : 0 });
+  }
+
+  const bestDay = [...last7Days].sort((a,b) => b.pct - a.pct)[0];
+
+  const sparklineHtml = `
+    <div class="mini-graph">
+      ${last7Days.map(d => `
+        <div class="graph-bar-wrap">
+          <div class="graph-bar" style="height: ${Math.max(4, d.pct)}%;"></div>
+          <div class="graph-label">${d.day}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+
+  const msgs = [
+    `Insights for your journey:`,
+    `Your completion average is <b>${totalPct}%</b> across <b>${totalTasks}</b> tracked tasks.`,
+    `Recently, you've achieved this level of consistency: ${sparklineHtml}`,
+  ];
+
+  if (bestDay && bestDay.pct > 0) {
+    const fullDayName = DAY_NAMES.find(n => n.startsWith(bestDay.day));
+    msgs.push(`Your strongest day recently was <b>${fullDayName}</b> with <b>${bestDay.pct}%</b> completion.`);
+  }
+
+  if (totalPct > 80) msgs.push(`Excellent consistency. You're mastering your schedule.`);
+  else if (totalPct > 50) msgs.push(`Steady progress. Aim for one more completion today.`);
+  else msgs.push(`Focus on the smallest possible step to build momentum.`);
+
+  const chatHtml = msgs.map(m => `
+    <div class="chat-msg bot">
+      <div class="chat-bubble">${m}</div>
+    </div>
+  `).join('');
+
+  return `
+    <div class="view-wrap">
+      <div class="chat-container">
+        <div class="chat-header">Analytics</div>
+        ${chatHtml}
+      </div>
+    </div>
+  `;
+}
+
 function attachEvents() {
   document.querySelectorAll('.sb-link').forEach(a => {
-    a.onclick = e => { e.preventDefault(); navigate(a.dataset.view); };
+    a.onclick = e => {
+      e.preventDefault();
+      const view = a.dataset.view;
+      if (view) navigate(view);
+    };
   });
 
   const prev = document.getElementById('cal-prev');
@@ -1130,9 +1196,13 @@ setInterval(updateClock, 30_000);
 
 // SSE: listen for data changes instead of polling
 const evtSource = new EventSource('/api/events');
-evtSource.onmessage = async () => {
+evtSource.onmessage = async (e) => {
+  console.log("SSE update received", e.data);
   if (document.getElementById('add-modal').style.display === 'flex') return;
   await loadData();
+};
+evtSource.onerror = (e) => {
+  console.error("SSE connection lost. Reconnecting...", e);
 };
 
 loadData();

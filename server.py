@@ -35,7 +35,15 @@ async def sse_events():
             pass
         finally:
             event_clients.remove(q)
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_stream(), 
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
 
 # ── Database API routes ────────────────────────────────────────────────────────
 import json
