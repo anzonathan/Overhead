@@ -34,6 +34,7 @@ function getTasksForDate(dateStr) {
 // ─── LOCAL STATE ──────────────────────────────────────────────────────────────
 let currentView = 'today';
 let calState    = { year: _now.getFullYear(), month: _now.getMonth() };
+let dayState    = { y: _now.getFullYear(), m: _now.getMonth(), d: _now.getDate() };
 let selectedDay = null;
 let goalFilter  = '';
 
@@ -52,6 +53,27 @@ function toggleTaskCollapse(taskId, open) {
 }
 function dateKey(y, m, d) {
   return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+function shiftSelectedDay(offset) {
+  let target = selectedDay || dayState;
+  const d = new Date(target.y, target.m, target.d);
+  d.setDate(d.getDate() + offset);
+  if (d.getDay() === 6) d.setDate(d.getDate() + (offset > 0 ? 1 : -1));
+  
+  const newState = { y: d.getFullYear(), m: d.getMonth(), d: d.getDate() };
+  if (selectedDay) {
+    selectedDay = newState;
+    if (selectedDay.m !== calState.month || selectedDay.y !== calState.year) {
+      calState.month = selectedDay.m;
+      calState.year = selectedDay.y;
+      loadData();
+    } else {
+      render();
+    }
+  } else {
+    dayState = newState;
+    render();
+  }
 }
 function isToday(y, m, d) {
   return y === APP_TODAY.y && m === APP_TODAY.m && d === APP_TODAY.d;
@@ -108,10 +130,10 @@ function calcScheduledMins(tasks) {
 }
 
 function renderToday() {
-  const key  = dateKey(APP_TODAY.y, APP_TODAY.m, APP_TODAY.d);
-  const date = new Date(APP_TODAY.y, APP_TODAY.m, APP_TODAY.d);
-  const dd   = String(APP_TODAY.d).padStart(2, '0');
-  const mon  = MONTH_NAMES[APP_TODAY.m].slice(0,3) + "'" + String(APP_TODAY.y).slice(2);
+  const key  = dateKey(dayState.y, dayState.m, dayState.d);
+  const date = new Date(dayState.y, dayState.m, dayState.d);
+  const dd   = String(dayState.d).padStart(2, '0');
+  const mon  = MONTH_NAMES[dayState.m].slice(0,3) + "'" + String(dayState.y).slice(2);
   const day  = DAY_NAMES[date.getDay()];
   const jewishDate = getHebrewDate(date);
 
@@ -373,7 +395,10 @@ function renderMonth() {
 
     detail = `
       <div class="cal-detail">
-        <h3>${DAY_NAMES[date.getDay()]}, ${selectedDay.d} ${MONTH_NAMES[selectedDay.m]} ${addBtnMonth}</h3>
+        <h3 style="display:flex; align-items:center; gap:8px;">
+          ${DAY_NAMES[date.getDay()]}, ${selectedDay.d} ${MONTH_NAMES[selectedDay.m]}
+          ${addBtnMonth}
+        </h3>
         ${schedRows}
       </div>`;
   }
@@ -385,10 +410,6 @@ function renderMonth() {
     <div class="view-wrap">
       <div class="week-hero">
         <h1>${MONTH_NAMES[month]} ${year}${monthTag}</h1>
-        <div class="cal-btns">
-          <button id="cal-prev">←</button>
-          <button id="cal-next">→</button>
-        </div>
       </div>
       <table class="cal-table">
         <thead><tr>${ths}</tr></thead>
@@ -563,6 +584,9 @@ function cycleMobileView() {
   const icons = ['○', 'w', '▦', '≡', '⌇'];
   let idx = views.indexOf(currentView);
   idx = (idx + 1) % views.length;
+  if (views[idx] === 'today') {
+    dayState = { ...APP_TODAY };
+  }
   document.getElementById('mobile-toggle-icon').innerText = icons[idx];
   navigate(views[idx]);
 }
@@ -1098,14 +1122,12 @@ function attachEvents() {
     a.onclick = e => {
       e.preventDefault();
       const view = a.dataset.view;
+      if (view === 'today') {
+        dayState = { ...APP_TODAY };
+      }
       if (view) navigate(view);
     };
   });
-
-  const prev = document.getElementById('cal-prev');
-  const next = document.getElementById('cal-next');
-  if (prev) prev.onclick = () => { calState.month--; if (calState.month<0){calState.month=11;calState.year--;} selectedDay=null; loadData(); };
-  if (next) next.onclick = () => { calState.month++; if (calState.month>11){calState.month=0;calState.year++;} selectedDay=null; loadData(); };
 
   document.querySelectorAll('.cal-table td[data-day]').forEach(td => {
     td.onclick = () => {
@@ -1213,3 +1235,12 @@ document.getElementById('modal-close').onclick = closeModal;
 document.getElementById('modal-submit').onclick = submitModal;
 document.getElementById('modal-input').onkeydown = e => { if (e.key==='Enter') submitModal(); if (e.key==='Escape') closeModal(); };
 document.getElementById('add-modal').onclick = e => { if (e.target === e.currentTarget) closeModal(); };
+
+window.addEventListener('keydown', e => {
+  if (document.getElementById('add-modal').style.display === 'flex') return;
+  if ((currentView === 'month' && selectedDay) || currentView === 'today') {
+    if (e.key === 'ArrowLeft') shiftSelectedDay(-1);
+    if (e.key === 'ArrowRight') shiftSelectedDay(1);
+    if (e.key === 'Escape' && selectedDay) { selectedDay = null; render(); }
+  }
+});
