@@ -41,7 +41,10 @@ let goalFilter  = '';
 let AREAS = [];
 let GOALS = [];
 let TASKS = [];
+let TEMPLATES = [];
 let collapsedTasks = new Set();
+let weekOffset = 0;
+let anaGran = 'day';
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 function toggleTaskCollapse(taskId, open) {
@@ -53,6 +56,16 @@ function toggleTaskCollapse(taskId, open) {
 }
 function dateKey(y, m, d) {
   return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+function sundayOf(date) {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  d.setDate(d.getDate() - d.getDay());
+  return d;
+}
+function currentContextDate() {
+  if (currentView === 'today') return dateKey(dayState.y, dayState.m, dayState.d);
+  if (currentView === 'month' && selectedDay) return dateKey(selectedDay.y, selectedDay.m, selectedDay.d);
+  return dateKey(APP_TODAY.y, APP_TODAY.m, APP_TODAY.d);
 }
 function shiftSelectedDay(offset) {
   let target = selectedDay || dayState;
@@ -129,6 +142,138 @@ function calcScheduledMins(tasks) {
   return total;
 }
 
+// ─── SUBTASK WEIGHT / PROGRESS ────────────────────────────────────────────────
+function siblingsOf(task) {
+  return TASKS.filter(c => c.parentId === task.id && c.title !== '__DELETED__');
+}
+function childWeight(child, siblings) {
+  const totalW = siblings.reduce((s, c) => s + (+c.weight || 0), 0);
+  if (totalW > 0) return ((+child.weight || 0) / totalW) * 100;
+  return 100 / (siblings.length || 1);
+}
+function taskProgress(task) {
+  const kids = siblingsOf(task);
+  if (!kids.length) return task.done ? 100 : 0;
+  let prog = 0;
+  kids.forEach(k => { if (k.done) prog += childWeight(k, kids); });
+  return Math.round(prog);
+}
+
+// ─── TEMPLATES ────────────────────────────────────────────────────────────────
+let templateDay = null;
+
+async function applyTemplate(dateKeyStr, dow) {
+  const items = (TEMPLATES[dow] || []);
+  if (!items.length) return;
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    const newTask = {
+      id: 't' + Date.now() + i,
+      date: dateKeyStr,
+      goalId: it.goalId || '',
+      parentId: '',
+      title: it.title || '',
+      time: it.time || '',
+      done: false,
+      weight: 0
+    };
+    await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newTask)
+    });
+  }
+  await loadData();
+}
+
+function openTemplateItemModal(day) {
+  templateDay = day;
+  editTaskId = null;
+  taskParentId = null;
+  document.getElementById('add-modal').style.display = 'flex';
+  document.getElementById('modal-title').innerText = `Template · ${DAY_NAMES[day]}`;
+  const inputEl = document.getElementById('modal-input');
+  inputEl.value = '';
+  inputEl.placeholder = 'Template task title...';
+  inputEl.focus();
+
+  document.getElementById('modal-fields').innerHTML = `
+    <div style="flex:1;">
+      <select id="modal-goal-sel" style="width:100%;background:var(--surface); border:1px solid #ccc; border-radius:4px; padding:4px 8px; font-family:var(--mono); font-size:11px;">
+        ${goalOptionsHtml('')}
+      </select>
+    </div>
+    <div style="display:flex;gap:4px;align-items:center;">
+      <input type="time" id="modal-time-start" style="background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; border-radius:4px; padding:4px; font-family:var(--mono); font-size:11px;" />
+      <span style="color:var(--ink-2);font-size:10px;">-</span>
+      <input type="time" id="modal-time-end" style="background:#fef2f2; color:#991b1b; border:1px solid #fecaca; border-radius:4px; padding:4px; font-family:var(--mono); font-size:11px;" />
+    </div>
+  `;
+  document.getElementById('modal-submit').onclick = submitTemplateItem;
+}
+
+async function submitTemplateItem() {
+  const title = document.getElementById('modal-input').value.trim();
+  if (!title) return;
+  const goalId = document.getElementById('modal-goal-sel').value || '';
+  const st = document.getElementById('modal-time-start')?.value || '';
+  const et = document.getElementById('modal-time-end')?.value || '';
+  const time = (st && et) ? `${st} - ${et}` : st;
+  const items = [...(TEMPLATES[templateDay] || [])];
+  items.push({ title, time, goalId });
+  await fetch(`/api/templates/${templateDay}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ day: templateDay, items: JSON.stringify(items) })
+  });
+  await loadData();
+  closeModal();
+}
+
+async function deleteTemplateItem(day, index) {
+  const items = [...(TEMPLATES[day] || [])];
+  items.splice(index, 1);
+  await fetch(`/api/templates/${day}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ day, items: JSON.stringify(items) })
+  });
+  await loadData();
+}
+
+function renderTemplates() {
+  let html = `<div class="view-wrap">
+    <div class="goals-hero">
+      <h1>Templates</h1>
+      <p>Per-weekday templates · apply to any date from Week view</p>
+    </div>`;
+  for (let d = 0; d < 7; d++) {
+    const items = TEMPLATES[d] || [];
+    const isSab = d === 6;
+    const rows = items.map((it, idx) => {
+      const g = it.goalId ? getGoal(it.goalId) : null;
+      return `
+        <div class="tpl-row">
+          <span class="tpl-time">${it.time || '--:--'}</span>
+          <span class="tpl-title">${it.title}</span>
+          <span class="tpl-goal">${g ? g.title : ''}</span>
+          <button class="sub-add-btn" onclick="deleteTemplateItem(${d}, ${idx})" title="Remove">×</button>
+        </div>`;
+    }).join('');
+    html += `
+      <div class="tpl-day${isSab ? ' tpl-sab' : ''}">
+        <div class="tpl-day-head">
+          <span class="tpl-day-name">${DAY_NAMES[d]}</span>
+          ${isSab ? '<span class="tpl-sab-tag">sabbath</span>' : ''}
+          <button class="goal-add-btn" onclick="openTemplateItemModal(${d})">+ add item</button>
+        </div>
+        ${rows || '<p style="color:var(--ink-2);font-family:var(--mono);font-size:11px;padding:4px 0;">No template items.</p>'}
+      </div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
 function renderToday() {
   const key  = dateKey(dayState.y, dayState.m, dayState.d);
   const date = new Date(dayState.y, dayState.m, dayState.d);
@@ -159,6 +304,7 @@ function renderToday() {
     const subtasks = tasks.filter(st => st.parentId === t.id && st.title !== '__DELETED__');
     const hasSubtasks = subtasks.length > 0;
     const chevron = hasSubtasks ? `<span class="row-chevron"></span>` : `<span class="row-chevron-spacer"></span>`;
+    const pctLabel = hasSubtasks ? `<span class="row-pct">${taskProgress(t)}%</span>` : '';
 
     const rowContent = `
       <div class="day-row${t.done ? ' done' : ''}">
@@ -166,6 +312,7 @@ function renderToday() {
         <span class="row-icon" title="${goal ? goal.area : 'none'}">${sym}</span>
         <span class="row-title" onclick="event.preventDefault(); openModal('${t.id}')" style="cursor:pointer">${label}</span>
         ${timeLabel}
+        ${pctLabel}
         <button class="sub-add-btn" onclick="openModal(null, '${key}', '${t.id}')">+</button>
         <span class="row-cb${t.done ? ' checked' : ''}" onclick="toggleRowTask(event, '${t.id}')">✓</span>
       </div>`;
@@ -221,31 +368,53 @@ function renderToday() {
 }
 
 // ─── RENDER WEEK ──────────────────────────────────────────────────────────────
+function shiftWeek(offset) {
+  weekOffset += offset;
+  render();
+}
+
+function resetWeek() {
+  weekOffset = 0;
+  render();
+}
+
 function renderWeek() {
-  const todayDate = new Date();
-  
+  const anchor = sundayOf(new Date());
+  anchor.setDate(anchor.getDate() + weekOffset * 7);
+  const weekEnd = new Date(anchor);
+  weekEnd.setDate(anchor.getDate() + 6);
+  const weekLabel = `${MONTH_NAMES[anchor.getMonth()].slice(0,3)} ${anchor.getDate()} – ${MONTH_NAMES[weekEnd.getMonth()].slice(0,3)} ${weekEnd.getDate()}`;
+
   let html = `<div class="view-wrap">
     <div class="week-hero">
-      <h1>This Week</h1>
+      <h1>${weekLabel}</h1>
+      <div class="cal-btns">
+        <button onclick="shiftWeek(-1)" title="Previous week">‹</button>
+        <button onclick="resetWeek()" title="This week">·</button>
+        <button onclick="shiftWeek(1)" title="Next week">›</button>
+      </div>
     </div><div class="week-list">`;
-    
+
   for (let i = 0; i < 7; i++) {
-    const d = new Date(todayDate);
-    d.setDate(todayDate.getDate() + i);
+    const d = new Date(anchor);
+    d.setDate(anchor.getDate() + i);
     const key = dateKey(d.getFullYear(), d.getMonth(), d.getDate());
-    const isSab = d.getDay() === 6;
+    const dow = d.getDay();
+    const isSab = dow === 6;
+    const isTodayDay = isToday(d.getFullYear(), d.getMonth(), d.getDate());
     const tasks = getTasksForDate(key);
-    
+
     function renderTaskRow(t, isSubtask = false) {
       const goal = t.goalId ? getGoal(t.goalId) : null;
       const area = goal ? getArea(goal.area) : null;
       const sym = area ? area.sym : '·';
       const label = t.title || (goal ? goal.title : 'Untitled');
       const timeLabel = (t.time && !isSubtask) ? `<span class="row-time">${t.time}</span>` : '';
-      
+
       const subtasks = tasks.filter(st => st.parentId === t.id && st.title !== '__DELETED__');
       const hasSubtasks = subtasks.length > 0;
       const chevron = hasSubtasks ? `<span class="row-chevron"></span>` : `<span class="row-chevron-spacer"></span>`;
+      const pctLabel = hasSubtasks ? `<span class="row-pct">${taskProgress(t)}%</span>` : '';
 
       const rowContent = `
         <div class="day-row${t.done ? ' done':''}" style="padding:6px 0;">
@@ -253,6 +422,7 @@ function renderWeek() {
           <span class="row-icon">${sym}</span>
           <span class="row-title" onclick="event.preventDefault(); openModal('${t.id}')" style="cursor:pointer;font-size:14px;">${label}</span>
           ${timeLabel}
+          ${pctLabel}
           <button class="sub-add-btn" onclick="openModal(null, '${key}', '${t.id}')">+</button>
           <span class="row-cb${t.done ? ' checked' : ''}" onclick="toggleRowTask(event, '${t.id}')">✓</span>
         </div>`;
@@ -278,11 +448,15 @@ function renderWeek() {
       ? `<p style="color:#dc2626;font-family:var(--mono);font-size:11px;margin-bottom:12px;">⊗ SABBATH — no tasks scheduled</p>`
       : tasks.filter(t => !t.parentId).map(t => renderTaskRow(t)).join('');
 
-    const addBtn = isSab ? '' : `<div style="margin-top:2px;"><button class="sub-add-btn" onclick="openModalForDate('${key}')" title="Add task in this day">+</button></div>`;
+    const applyBtn = (!isSab && (TEMPLATES[dow] || []).length)
+      ? `<button class="template-apply-btn" onclick="applyTemplate('${key}', ${dow})" title="Apply ${DAY_NAMES[dow]} template">◇ template</button>`
+      : '';
+    const addBtn = isSab ? '' : `<button class="sub-add-btn" onclick="openModalForDate('${key}')" title="Add task in this day">+</button>`;
 
     html += `
       <div style="margin-bottom:24px;">
-        <h3 style="font-size:16px; margin-bottom:8px; border-bottom:1.5px solid var(--ink); display:inline-block;">${DAY_NAMES[d.getDay()]}, ${d.getDate()}</h3>
+        <h3 style="font-size:16px; margin-bottom:8px; border-bottom:1.5px solid var(--ink); display:inline-block;">${DAY_NAMES[dow]}, ${d.getDate()}${isTodayDay ? ' · today' : ''}</h3>
+        ${applyBtn}
         ${taskHtml || '<p style="color:var(--ink-2);font-family:var(--mono);font-size:11px;">No tasks.</p>'}
         ${addBtn}
       </div>
@@ -360,6 +534,7 @@ function renderMonth() {
       const subtasks = tasks.filter(st => st.parentId === t.id && st.title !== '__DELETED__');
       const hasSubtasks = subtasks.length > 0;
       const chevron = hasSubtasks ? `<span class="row-chevron"></span>` : `<span class="row-chevron-spacer"></span>`;
+      const pctLabel = hasSubtasks ? `<span class="row-pct">${taskProgress(t)}%</span>` : '';
       
       const rowContent = `
         <div class="day-row${t.done ? ' done':''}">
@@ -367,6 +542,7 @@ function renderMonth() {
           <span class="row-icon">${sym}</span>
           <span class="row-title" onclick="event.preventDefault(); openModal('${t.id}')" style="cursor:pointer">${label}</span>
           ${timeLabel}
+          ${pctLabel}
           <button class="sub-add-btn" onclick="openModal(null, '${key}', '${t.id}')">+</button>
           <span class="row-cb${t.done ? ' checked' : ''}" onclick="toggleRowTask(event, '${t.id}')">✓</span>
         </div>`;
@@ -534,14 +710,16 @@ async function toggleRowTask(e, taskId) {
   }
 }
 
-async function updateTaskStatusRecursive(task, done) {
+async function updateTaskStatusRecursive(task, done, propagateChildren = true, recomputeParent = true) {
   task.done = done;
   
   // 1. Handle children: if we check a parent, check all children. If we uncheck, uncheck all.
-  const children = TASKS.filter(st => st.parentId === task.id && st.title !== '__DELETED__');
-  for (const child of children) {
-    if (child.done !== done) {
-      await updateTaskStatusRecursive(child, done);
+  if (propagateChildren) {
+    const children = TASKS.filter(st => st.parentId === task.id && st.title !== '__DELETED__');
+    for (const child of children) {
+      if (child.done !== done) {
+        await updateTaskStatusRecursive(child, done, true, false);
+      }
     }
   }
 
@@ -561,15 +739,13 @@ async function updateTaskStatusRecursive(task, done) {
     });
   }
 
-  // 3. Handle parent: if we check a child, check parent if ALL siblings are done.
-  // If we uncheck a child, uncheck parent.
-  if (task.parentId) {
+  // 3. Handle parent: recompute weighted completion (subtask = % of parent).
+  if (recomputeParent && task.parentId) {
     const parent = TASKS.find(p => p.id === task.parentId);
     if (parent) {
-      const siblings = TASKS.filter(s => s.parentId === parent.id && s.title !== '__DELETED__');
-      const allDone = siblings.every(s => s.done);
-      if (parent.done !== allDone) {
-        await updateTaskStatusRecursive(parent, allDone);
+      const newDone = taskProgress(parent) >= 100;
+      if (parent.done !== newDone) {
+        await updateTaskStatusRecursive(parent, newDone, false, true);
       }
     }
   }
@@ -580,8 +756,8 @@ let modalTargetDate = null;
 let taskParentId = null;
 
 function cycleMobileView() {
-  const views = ['today', 'week', 'month', 'goals', 'analytics'];
-  const icons = ['○', 'w', '▦', '≡', '⌇'];
+  const views = ['today', 'week', 'month', 'goals', 'templates', 'analytics'];
+  const icons = ['○', 'w', '▦', '≡', '▤', '⌇'];
   let idx = views.indexOf(currentView);
   idx = (idx + 1) % views.length;
   if (views[idx] === 'today') {
@@ -596,16 +772,40 @@ function openModalForDate(dateStr) {
   openModal(null);
 }
 
+function goalOptionsHtml(curGoalId = '') {
+  let options = '<option value="">(No Goal)</option>';
+  AREAS.forEach(a => {
+    options += `<optgroup label="${a.name}">`;
+    const areaGoals = GOALS.filter(g => g.area === a.id);
+    areaGoals.forEach(g => {
+      const sel = (g.id === curGoalId) ? 'selected' : '';
+      options += `<option value="${g.id}" ${sel}>${g.title}</option>`;
+    });
+    options += `</optgroup>`;
+  });
+  const orphanGoals = GOALS.filter(g => !g.area || !getArea(g.area));
+  if (orphanGoals.length) {
+    options += `<optgroup label="Other">`;
+    orphanGoals.forEach(g => {
+      const sel = (g.id === curGoalId) ? 'selected' : '';
+      options += `<option value="${g.id}" ${sel}>${g.title}</option>`;
+    });
+    options += `</optgroup>`;
+  }
+  return options;
+}
+
 function openModal(taskId = null, dateStr = null, parentId = null) {
   editTaskId = taskId;
   taskParentId = parentId;
-  modalTargetDate = dateStr || modalTargetDate;
+  modalTargetDate = dateStr || (taskId ? modalTargetDate : currentContextDate());
 
   document.getElementById('add-modal').style.display = 'flex';
   const inputEl = document.getElementById('modal-input');
   
   let st = "", et = "";
   let curGoalId = "";
+  let curWeight = 0;
   let isSubtask = !!parentId;
   
   if (taskId) {
@@ -616,6 +816,7 @@ function openModal(taskId = null, dateStr = null, parentId = null) {
       curGoalId = t.goalId;
       taskParentId = t.parentId;
       isSubtask = !!t.parentId;
+      curWeight = t.weight || 0;
       if (t.time && t.time.includes('-')) {
         const pts = t.time.split('-');
         st = pts[0].trim(); et = pts[1].trim();
@@ -633,30 +834,17 @@ function openModal(taskId = null, dateStr = null, parentId = null) {
   
   inputEl.focus();
   
-  let options = '<option value="">(No Goal)</option>';
-  AREAS.forEach(a => {
-    options += `<optgroup label="${a.name}">`;
-    const areaGoals = GOALS.filter(g => g.area === a.id);
-    areaGoals.forEach(g => {
-      const sel = (g.id === curGoalId) ? 'selected' : '';
-      options += `<option value="${g.id}" ${sel}>${g.title}</option>`;
-    });
-    options += `</optgroup>`;
-  });
-  // Also list orphan goals (no area)
-  const orphanGoals = GOALS.filter(g => !g.area || !getArea(g.area));
-  if (orphanGoals.length) {
-    options += `<optgroup label="Other">`;
-    orphanGoals.forEach(g => {
-      const sel = (g.id === curGoalId) ? 'selected' : '';
-      options += `<option value="${g.id}" ${sel}>${g.title}</option>`;
-    });
-    options += `</optgroup>`;
-  }
+  let options = goalOptionsHtml(curGoalId);
 
   const delBtn = taskId ? `<span title="Delete Task" onclick="deleteTask('${taskId}')" style="font-size:15px; cursor:pointer; color:var(--ink-2); display:flex; align-items:center; padding-left:4px; transition:color .1s;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--ink-2)'">🗑</span>` : '';
 
   const timeRowDisplay = isSubtask ? 'none' : 'flex';
+
+  const weightRow = isSubtask ? `
+    <div style="display:flex;align-items:center;gap:4px;">
+      <span style="font-family:var(--mono);font-size:9px;color:var(--ink-2);text-transform:uppercase;">% of parent</span>
+      <input type="number" id="modal-weight" min="0" max="100" value="${curWeight}" style="width:56px;background:var(--surface-alt);border:none;border-radius:4px;padding:4px;font-family:var(--mono);font-size:11px;color:var(--ink);" />
+    </div>` : '';
 
   document.getElementById('modal-fields').innerHTML = `
     <div style="flex:1;">
@@ -669,6 +857,7 @@ function openModal(taskId = null, dateStr = null, parentId = null) {
       <span style="color:var(--ink-2);font-size:10px;">-</span>
       <input type="time" id="modal-time-end" style="background:#fef2f2; color:#991b1b; border:1px solid #fecaca; border-radius:4px; padding:4px; font-family:var(--mono); font-size:11px;" value="${et}" />
     </div>
+    ${weightRow}
     ${delBtn}
   `;
   document.getElementById('modal-submit').onclick = submitModal;
@@ -683,10 +872,11 @@ async function submitModal() {
   
   const titleText = document.getElementById('modal-input').value.trim();
   const goalId = document.getElementById('modal-goal-sel').value || '';
+  const weight = isSubtask ? (parseInt(document.getElementById('modal-weight')?.value) || 0) : 0;
   if (!titleText && !goalId) return;
 
   // Conflict detection: only if NOT a subtask
-  const targetKey = modalTargetDate || dateKey(APP_TODAY.y, APP_TODAY.m, APP_TODAY.d);
+  const targetKey = modalTargetDate || currentContextDate();
   
   if (!isSubtask && st && et) {
     const newStart = parseMinutes(st);
@@ -718,6 +908,7 @@ async function submitModal() {
       t.goalId = goalId;
       t.time = mergedTime;
       t.parentId = taskParentId || '';
+      t.weight = weight;
       
       if (t.isVirtual) {
         delete t.isVirtual;
@@ -742,7 +933,8 @@ async function submitModal() {
       parentId: taskParentId || '',
       title: titleText,
       time: mergedTime,
-      done: false
+      done: false,
+      weight: weight
     };
     await fetch('/api/tasks', {
       method: 'POST',
@@ -1051,9 +1243,21 @@ function render() {
     case 'week':  main.innerHTML = renderWeek();  break;
     case 'month': main.innerHTML = renderMonth(); break;
     case 'goals': main.innerHTML = renderGoals(); break;
+    case 'templates': main.innerHTML = renderTemplates(); break;
     case 'analytics': main.innerHTML = renderAnalytics(); break;
   }
   attachEvents();
+}
+
+function completionPct(tasks) {
+  const total = tasks.length;
+  if (!total) return 0;
+  return Math.round((tasks.filter(t => t.done).length / total) * 100);
+}
+
+function setAnaGran(gran) {
+  anaGran = gran;
+  render();
 }
 
 function renderAnalytics() {
@@ -1063,56 +1267,95 @@ function renderAnalytics() {
   const totalTasks = relevantTasks.length;
   const totalPct = totalTasks ? Math.round((doneTasks / totalTasks) * 100) : 0;
 
-  const last7Days = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(); d.setDate(d.getDate() - i);
-    const key = dateKey(d.getFullYear(), d.getMonth(), d.getDate());
-    const dayTasks = TASKS.filter(t => t.date === key && t.title !== '__DELETED__');
-    const done = dayTasks.filter(t => t.done).length;
-    const total = dayTasks.length;
-    last7Days.push({ day: DAY_NAMES[d.getDay()].slice(0,1), pct: total ? Math.round((done/total)*100) : 0 });
+  // Build buckets
+  let buckets = [];
+  if (anaGran === 'day') {
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      const key = dateKey(d.getFullYear(), d.getMonth(), d.getDate());
+      const dayTasks = TASKS.filter(t => t.date === key && t.title !== '__DELETED__');
+      buckets.push({ label: `${DAY_NAMES[d.getDay()].slice(0,1)} ${d.getDate()}`, pct: completionPct(dayTasks) });
+    }
+  } else if (anaGran === 'week') {
+    for (let i = 11; i >= 0; i--) {
+      const sun = sundayOf(new Date());
+      sun.setDate(sun.getDate() - i * 7);
+      const range = [];
+      for (let j = 0; j < 7; j++) {
+        const d = new Date(sun); d.setDate(sun.getDate() + j);
+        range.push(dateKey(d.getFullYear(), d.getMonth(), d.getDate()));
+      }
+      const weekTasks = TASKS.filter(t => t.title !== '__DELETED__' && range.includes(t.date));
+      buckets.push({ label: `${sun.getMonth() + 1}/${sun.getDate()}`, pct: completionPct(weekTasks) });
+    }
+  } else {
+    const now = new Date();
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const y = d.getFullYear(), m = d.getMonth();
+      const monthTasks = TASKS.filter(t => {
+        if (t.title === '__DELETED__') return false;
+        const [ty, tm] = (t.date || '').split('-').map(Number);
+        return ty === y && tm - 1 === m;
+      });
+      buckets.push({ label: MONTH_NAMES[m].slice(0, 3), pct: completionPct(monthTasks) });
+    }
   }
 
-  const bestDay = [...last7Days].sort((a,b) => b.pct - a.pct)[0];
+  const best = [...buckets].sort((a, b) => b.pct - a.pct)[0];
+  const activeToday = TASKS.filter(t => t.date === todayK && t.title !== '__DELETED__' && !t.done).length;
 
-  const sparklineHtml = `
-    <div class="mini-graph">
-      ${last7Days.map(d => `
-        <div class="graph-bar-wrap">
-          <div class="graph-bar" style="height: ${Math.max(4, d.pct)}%;"></div>
-          <div class="graph-label">${d.day}</div>
+  const chartHtml = `
+    <div class="week-stats-container">
+      ${buckets.map(b => `
+        <div class="week-stat-col">
+          <span class="week-stat-date">${b.pct}%</span>
+          <div class="week-stat-bar">
+            <div class="week-stat-fill" style="height:${Math.max(2, b.pct)}%;"></div>
+          </div>
+          <span class="week-stat-label">${b.label}</span>
         </div>
       `).join('')}
     </div>
   `;
 
-  const msgs = [
-    `Insights for your journey:`,
-    `Your completion average is <b>${totalPct}%</b> across <b>${totalTasks}</b> tracked tasks.`,
-    `Recently, you've achieved this level of consistency: ${sparklineHtml}`,
-  ];
-
-  if (bestDay && bestDay.pct > 0) {
-    const fullDayName = DAY_NAMES.find(n => n.startsWith(bestDay.day));
-    msgs.push(`Your strongest day recently was <b>${fullDayName}</b> with <b>${bestDay.pct}%</b> completion.`);
-  }
-
-  if (totalPct > 80) msgs.push(`Excellent consistency. You're mastering your schedule.`);
-  else if (totalPct > 50) msgs.push(`Steady progress. Aim for one more completion today.`);
-  else msgs.push(`Focus on the smallest possible step to build momentum.`);
-
-  const chatHtml = msgs.map(m => `
-    <div class="chat-msg bot">
-      <div class="chat-bubble">${m}</div>
+  const toggleHtml = `
+    <div class="horizon-filter" style="margin-bottom:16px;">
+      <div class="horizon-btn b-active ${anaGran === 'day' ? '' : 'inactive'}" onclick="setAnaGran('day')" style="width:auto;padding:0 8px;">Day</div>
+      <div class="horizon-btn b-active ${anaGran === 'week' ? '' : 'inactive'}" onclick="setAnaGran('week')" style="width:auto;padding:0 8px;">Week</div>
+      <div class="horizon-btn b-active ${anaGran === 'month' ? '' : 'inactive'}" onclick="setAnaGran('month')" style="width:auto;padding:0 8px;">Month</div>
     </div>
-  `).join('');
+  `;
+
+  const bestLabel = best && best.pct > 0 ? `Best ${anaGran}: <b>${best.label}</b> at <b>${best.pct}%</b>` : 'No completion recorded yet.';
 
   return `
     <div class="view-wrap">
-      <div class="chat-container">
-        <div class="chat-header">Analytics</div>
-        ${chatHtml}
+      <div class="goals-hero">
+        <h1>Performance</h1>
+        <p>Completion rate charted by ${anaGran}</p>
       </div>
+      ${toggleHtml}
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value">${totalPct}%</div>
+          <div class="stat-desc">All-time completion</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${doneTasks}/${totalTasks}</div>
+          <div class="stat-desc">Tasks done</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${activeToday}</div>
+          <div class="stat-desc">Open today</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${best ? best.pct : 0}%</div>
+          <div class="stat-desc">Best ${anaGran}</div>
+        </div>
+      </div>
+      ${chartHtml}
+      <p style="font-family:var(--mono);font-size:11px;color:var(--ink-2);margin-top:16px;">${bestLabel}</p>
     </div>
   `;
 }
@@ -1158,7 +1401,11 @@ async function loadData() {
       try { parsed = JSON.parse(g.subgoals || "[]"); } catch(e) {}
       return {...g, subgoals: parsed };
     });
-    TASKS = (data.tasks || []).map(t => ({...t, done: !!t.done, parentId: t.parentId || ''}));
+    TASKS = (data.tasks || []).map(t => ({...t, done: !!t.done, parentId: t.parentId || '', weight: +t.weight || 0}));
+    TEMPLATES = Array(7).fill().map(() => []);
+    (data.templates || []).forEach(t => {
+      try { TEMPLATES[t.day] = JSON.parse(t.items || '[]'); } catch(e) {}
+    });
     hydrateVirtualTasks();
     render();
   } catch(e) {

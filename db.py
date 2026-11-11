@@ -20,7 +20,13 @@ def init_db():
             conn.execute("ALTER TABLE tasks ADD COLUMN parentId TEXT DEFAULT ''")
         except sqlite3.OperationalError:
             pass # Already exists
-            
+
+        # Migration: Add weight to tasks if missing
+        try:
+            conn.execute("ALTER TABLE tasks ADD COLUMN weight INTEGER NOT NULL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass # Already exists
+
         conn.commit()
 
 INITIAL_AREAS = []

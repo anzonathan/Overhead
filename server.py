@@ -74,6 +74,11 @@ class TaskStruct(BaseModel):
     title: Optional[str] = ""
     time: Optional[str] = ""
     done: bool = False
+    weight: Optional[int] = 0
+
+class TemplateStruct(BaseModel):
+    day: int
+    items: str
 
 @app.get("/api/health")
 def health():
@@ -85,7 +90,8 @@ def get_all_data():
         areas = [dict(r) for r in conn.execute("SELECT * FROM areas").fetchall()]
         goals = [dict(r) for r in conn.execute("SELECT * FROM goals").fetchall()]
         tasks = [dict(r) for r in conn.execute("SELECT * FROM tasks").fetchall()]
-    return {"areas": areas, "goals": goals, "tasks": tasks}
+        templates = [dict(r) for r in conn.execute("SELECT * FROM templates").fetchall()]
+    return {"areas": areas, "goals": goals, "tasks": tasks, "templates": templates}
 
 @app.post("/api/areas")
 async def create_area(a: AreaStruct):
@@ -140,8 +146,8 @@ async def delete_goal(goal_id: str):
 @app.post("/api/tasks")
 async def create_task(t: TaskStruct):
     with get_db() as conn:
-        conn.execute("INSERT INTO tasks (id, date, goalId, parentId, title, time, done) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                     (t.id, t.date, t.goalId, t.parentId, t.title, t.time, t.done))
+        conn.execute("INSERT INTO tasks (id, date, goalId, parentId, title, time, done, weight) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                     (t.id, t.date, t.goalId, t.parentId, t.title, t.time, t.done, t.weight))
         conn.commit()
     await notify_clients()
     return {"status": "ok"}
@@ -149,8 +155,17 @@ async def create_task(t: TaskStruct):
 @app.put("/api/tasks/{task_id}")
 async def update_task(task_id: str, t: TaskStruct):
     with get_db() as conn:
-        conn.execute("UPDATE tasks SET date=?, goalId=?, parentId=?, title=?, time=?, done=? WHERE id=?",
-                     (t.date, t.goalId, t.parentId, t.title, t.time, t.done, task_id))
+        conn.execute("UPDATE tasks SET date=?, goalId=?, parentId=?, title=?, time=?, done=?, weight=? WHERE id=?",
+                     (t.date, t.goalId, t.parentId, t.title, t.time, t.done, t.weight, task_id))
+        conn.commit()
+    await notify_clients()
+    return {"status": "ok"}
+
+@app.put("/api/templates/{day}")
+async def update_template(day: int, t: TemplateStruct):
+    with get_db() as conn:
+        conn.execute("INSERT INTO templates (day, items) VALUES (?, ?) ON CONFLICT(day) DO UPDATE SET items=excluded.items",
+                     (day, t.items))
         conn.commit()
     await notify_clients()
     return {"status": "ok"}

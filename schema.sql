@@ -23,5 +23,11 @@ CREATE TABLE IF NOT EXISTS tasks (
     parentId TEXT DEFAULT '',
     title TEXT,
     time TEXT,
-    done BOOLEAN NOT NULL DEFAULT 0
+    done BOOLEAN NOT NULL DEFAULT 0,
+    weight INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS templates (
+    day INTEGER PRIMARY KEY,
+    items TEXT NOT NULL DEFAULT '[]'
 );
